@@ -16,6 +16,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+
 @RestController
 @RequestMapping("/api/lab")
 public class LabController {
@@ -26,13 +29,15 @@ public class LabController {
     @Autowired
     private LabSubmissionMapper submissionMapper;
 
-    // 1. 查询所有实验任务列表
+    // 1. 查询所有实验任务列表（启用缓存，避免高并发下频繁刷库）
+    @Cacheable(value = "taskList")
     @GetMapping("/tasks")
     public Result<List<LabTask>> getTasks() {
         return Result.success(taskMapper.findAll());
     }
 
-    // 2. 教师发布新实验任务
+    // 2. 教师发布新实验任务（发布后自动清空缓存，保证数据一致性）
+    @CacheEvict(value = "taskList", allEntries = true)
     @PostMapping("/tasks")
     public Result<String> createTask(@RequestBody LabTask task) {
         if (task.getCourseId() == null) task.setCourseId(1L);

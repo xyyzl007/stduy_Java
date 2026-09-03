@@ -16,6 +16,7 @@
     <version>0.0.1-SNAPSHOT</version>
     <name>study</name>
     <description>学生实验报告提交系统</description>
+    <packaging>war</packaging>
 
     <properties>
         <java.version>17</java.version>
@@ -27,6 +28,13 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- 外置 Tomcat 部署支持 (provided 不会影响本地直接运行) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-tomcat</artifactId>
+            <scope>provided</scope>
         </dependency>
 
         <!-- MyBatis -->
@@ -51,10 +59,25 @@
     </dependencies>
 
     <build>
+        <finalName>study</finalName>
         <plugins>
+            <!-- 解决没有 web.xml 时的 War 打包问题 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-war-plugin</artifactId>
+                <version>3.4.0</version>
+                <configuration>
+                    <failOnMissingWebXml>false</failOnMissingWebXml>
+                </configuration>
+            </plugin>
+
+            <!-- Spring Boot 打包插件 -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>com.example.study.Main</mainClass>
+                </configuration>
             </plugin>
         </plugins>
     </build>
