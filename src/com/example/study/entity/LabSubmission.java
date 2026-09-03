@@ -7,13 +7,14 @@ public class LabSubmission {
     private Long id;
     private Long taskId;
     private Long studentId;
-    private String studentName; // 关联展示
-    private String taskTitle;   // 关联展示
+    private String studentName;
+    private String taskTitle;
     private String fileName;
     private String fileUrl;
     private Long fileSize;
     private LocalDateTime submitTime;
-    private String status;
+    private String status; // DRAFT(草稿), SUBMITTED(已正式提交), GRADED(已批阅)
+    private Integer submitCount; // 提交修改次数
     private BigDecimal score;
     private String feedback;
     private Long gradedBy;
@@ -39,6 +40,8 @@ public class LabSubmission {
     public void setSubmitTime(LocalDateTime submitTime) { this.submitTime = submitTime; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public Integer getSubmitCount() { return submitCount; }
+    public void setSubmitCount(Integer submitCount) { this.submitCount = submitCount; }
     public BigDecimal getScore() { return score; }
     public void setScore(BigDecimal score) { this.score = score; }
     public String getFeedback() { return feedback; }

@@ -17,7 +17,13 @@
     <el-main class="main-body">
       <!-- ================= 学生端视图 ================= -->
       <div v-if="currentRole === 'STUDENT'">
-        <el-alert title="欢迎进入学生工作台：可查看实验要求、在线上传提交实验报告、查询批阅状态与得分。" type="info" show-icon :closable="false" style="margin-bottom: 20px;" />
+        <el-alert
+            title="系统规则提醒：上传附件后将暂存于【草稿箱】（教师不可见）。请在截止前点击【确认提交】，截止期内支持最多 3 次修改重传。若截止仍未手动确认，系统将自动提交草稿。"
+            type="info"
+            show-icon
+            :closable="false"
+            style="margin-bottom: 20px;"
+        />
 
         <!-- 实验任务列表 -->
         <el-row :gutter="20">
@@ -30,65 +36,133 @@
                 </div>
               </template>
               <p style="color: #444; font-size: 14px; line-height: 1.6;"><strong>实验任务要求：</strong>{{ task.content }}</p>
-              <p style="color: #888; font-size: 13px;"><strong>截止提交时间：</strong>{{ task.deadline }}</p>
+              <p style="color: #888; font-size: 13px;"><strong>截止提交时间：</strong>{{ formatTime(task.deadline) }}</p>
 
-              <!-- 上传提交区域 -->
-              <div style="margin-top: 15px;">
+              <!-- 上传到草稿箱区域 (已移除 limit 限制，解决卡顿无反应问题) -->
+              <div style="margin-top: 15px; display: flex; align-items: center; gap: 15px;">
                 <el-upload
                     action="http://localhost:8080/api/lab/upload"
-                    :on-success="(res) => handleUploadSuccess(res, task.id)"
-                    :limit="1"
-                    :show-file-list="true"
+                    :before-upload="() => handleBeforeUpload(task.id)"
+                    :on-success="(res, file) => handleUploadSuccess(res, file, task.id)"
+                    :on-error="handleUploadError"
+                    :show-file-list="false"
                 >
-                  <el-button type="primary" :icon="Upload">上传实验报告附件 (PDF/Word)</el-button>
+                  <el-button
+                      type="primary"
+                      :icon="Upload"
+                      :loading="uploadingTaskId === task.id"
+                  >
+                    {{ uploadingTaskId === task.id ? '正在上传中...' : (getSubmission(task.id) ? '重新上传/更新草稿' : '上传报告至草稿箱') }}
+                  </el-button>
                 </el-upload>
+
+                <span v-if="getSubmission(task.id)" style="font-size: 13px; color: #606266;">
+                  当前暂存文件：<strong style="color: #409EFF;">{{ getSubmission(task.id).fileName }}</strong>
+                </span>
               </div>
             </el-card>
           </el-col>
         </el-row>
 
-        <!-- 我的提交记录 -->
+        <!-- 我的提交记录与草稿箱 -->
         <el-card shadow="never" style="margin-top: 10px;">
           <template #header>
-            <span style="font-weight: bold;">我的实验报告提交记录与批阅反馈</span>
+            <span style="font-weight: bold;">我的实验报告提交记录与草稿管理</span>
           </template>
           <el-table :data="mySubmissions" stripe style="width: 100%">
             <el-table-column prop="taskTitle" label="实验任务" />
-            <el-table-column prop="fileName" label="已提交文件" />
-            <el-table-column prop="submitTime" label="提交时间" width="180" />
-            <el-table-column label="批阅状态" width="120">
+            <el-table-column label="附件文件">
               <template #default="{ row }">
-                <el-tag v-if="row.status === 'GRADED'" type="success">已批阅</el-tag>
-                <el-tag v-else type="warning">待批阅</el-tag>
+                <el-link type="primary" :href="'http://localhost:8080' + row.fileUrl" target="_blank">
+                  {{ row.fileName }}
+                </el-link>
               </template>
             </el-table-column>
-            <el-table-column prop="score" label="最终得分" width="120">
+            <el-table-column prop="submitTime" label="更新/提交时间" width="170">
+              <template #default="{ row }">{{ formatTime(row.submitTime) }}</template>
+            </el-table-column>
+            <el-table-column label="状态" width="140">
               <template #default="{ row }">
-                <span v-if="row.score !== null" style="color: #67C23A; font-weight: bold; font-size: 16px;">{{ row.score }} 分</span>
-                <span v-else style="color: #909399;">暂未评分</span>
+                <el-tag v-if="row.status === 'DRAFT'" type="info">草稿箱 (待确认)</el-tag>
+                <el-tag v-else-if="row.status === 'SUBMITTED'" type="warning">已正式提交</el-tag>
+                <el-tag v-else-if="row.status === 'GRADED'" type="success">已批阅</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="已用修改次数" width="130">
+              <template #default="{ row }">
+                <span>{{ row.submitCount }} / 3 次</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="score" label="成绩" width="100">
+              <template #default="{ row }">
+                <span v-if="row.score !== null" style="color: #67C23A; font-weight: bold;">{{ row.score }} 分</span>
+                <span v-else style="color: #909399;">-</span>
               </template>
             </el-table-column>
             <el-table-column prop="feedback" label="教师评语" />
+            <el-table-column label="操作" width="150" fixed="right">
+              <template #default="{ row }">
+                <!-- 只要是草稿，或者正式提交后次数 < 3，都可以确认/重交 -->
+                <el-button
+                    v-if="row.status === 'DRAFT'"
+                    type="success"
+                    size="small"
+                    @click="confirmFinalSubmit(row.taskId)"
+                >
+                  确认正式提交
+                </el-button>
+                <el-button
+                    v-else-if="row.status === 'SUBMITTED' && row.submitCount < 3"
+                    type="primary"
+                    plain
+                    size="small"
+                    @click="promptReupload"
+                >
+                  申请修改重传
+                </el-button>
+                <span v-else-if="row.submitCount >= 3" style="font-size: 12px; color: #F56C6C;">已达修改上限</span>
+              </template>
+            </el-table-column>
           </el-table>
         </el-card>
       </div>
 
       <!-- ================= 教师端视图 ================= -->
       <div v-else>
-        <el-alert title="欢迎进入教师管理台：支持实时查看学生提交的报告材料、在线打分并录入反馈评语。" type="success" show-icon :closable="false" style="margin-bottom: 20px;" />
+        <el-alert title="欢迎进入教师管理台：系统已严格隔离学生草稿，此列表仅展示学生正式确认提交的报告。支持一键打包 ZIP。" type="success" show-icon :closable="false" style="margin-bottom: 20px;" />
 
         <el-card shadow="never">
           <template #header>
             <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-weight: bold;">学生报告待审列表 (实验一)</span>
-              <el-button type="primary" size="small" @click="loadTaskSubmissions">刷新列表</el-button>
+              <div style="display: flex; align-items: center; gap: 15px;">
+                <span style="font-weight: bold;">查看实验任务：</span>
+                <el-select v-model="selectedTaskId" placeholder="选择任务" style="width: 280px;" @change="loadTaskSubmissions">
+                  <el-option v-for="t in taskList" :key="t.id" :label="t.title" :value="t.id" />
+                </el-select>
+              </div>
+              <div>
+                <el-button type="success" :icon="Plus" @click="taskDialogVisible = true">发布新实验任务</el-button>
+                <el-button type="warning" :icon="Download" @click="downloadAllZip">打包下载全部报告 (ZIP)</el-button>
+                <el-button type="primary" size="default" @click="loadTaskSubmissions">刷新列表</el-button>
+              </div>
             </div>
           </template>
 
           <el-table :data="teacherSubmissions" border style="width: 100%">
             <el-table-column prop="studentName" label="提交学生" width="140" />
-            <el-table-column prop="fileName" label="报告附件" />
-            <el-table-column prop="submitTime" label="提交时间" width="180" />
+            <el-table-column label="报告附件 (点击下载/预览)">
+              <template #default="{ row }">
+                <el-link type="primary" :href="'http://localhost:8080' + row.fileUrl" target="_blank">
+                  {{ row.fileName }}
+                </el-link>
+              </template>
+            </el-table-column>
+            <el-table-column prop="submitTime" label="提交时间" width="180">
+              <template #default="{ row }">{{ formatTime(row.submitTime) }}</template>
+            </el-table-column>
+            <el-table-column label="修改版本" width="110">
+              <template #default="{ row }">第 {{ row.submitCount }} 版</template>
+            </el-table-column>
             <el-table-column label="批阅状态" width="120">
               <template #default="{ row }">
                 <el-tag v-if="row.status === 'GRADED'" type="success">已批阅</el-tag>
@@ -110,7 +184,35 @@
           </el-table>
         </el-card>
 
-        <!-- 批阅弹窗 -->
+        <!-- 教师发布新任务弹窗 -->
+        <el-dialog v-model="taskDialogVisible" title="发布新实验任务" width="550px">
+          <el-form label-width="110px">
+            <el-form-item label="实验标题">
+              <el-input v-model="newTaskForm.title" placeholder="如：实验三：Vue组件化开发" />
+            </el-form-item>
+            <el-form-item label="满分值">
+              <el-input-number v-model="newTaskForm.maxScore" :min="10" :max="100" />
+            </el-form-item>
+            <el-form-item label="截止时间">
+              <el-date-picker
+                  v-model="newTaskForm.deadline"
+                  type="datetime"
+                  placeholder="选择截止日期与时间"
+                  value-format="YYYY-MM-DDTHH:mm:ss"
+                  style="width: 100%;"
+              />
+            </el-form-item>
+            <el-form-item label="实验要求内容">
+              <el-input v-model="newTaskForm.content" type="textarea" :rows="4" placeholder="请详细输入实验要求..." />
+            </el-form-item>
+          </el-form>
+          <template #footer>
+            <el-button @click="taskDialogVisible = false">取消</el-button>
+            <el-button type="success" @click="submitNewTask">确认发布实验</el-button>
+          </template>
+        </el-dialog>
+
+        <!-- 批阅打分弹窗 -->
         <el-dialog v-model="dialogVisible" title="实验报告在线批阅与评分" width="500px">
           <el-form label-width="90px">
             <el-form-item label="学生姓名">
@@ -123,7 +225,7 @@
               <el-input-number v-model="gradeForm.score" :min="0" :max="100" />
             </el-form-item>
             <el-form-item label="教师评语">
-              <el-input v-model="gradeForm.feedback" type="textarea" :rows="4" placeholder="请输入指导反馈与改进意见..." />
+              <el-input v-model="gradeForm.feedback" type="textarea" :rows="4" />
             </el-form-item>
           </el-form>
           <template #footer>
@@ -138,7 +240,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { Reading, Upload } from '@element-plus/icons-vue'
+import { Reading, Upload, Plus, Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import axios from 'axios'
 
@@ -146,12 +248,32 @@ const API_BASE = 'http://localhost:8080/api/lab'
 
 const currentRole = ref('STUDENT')
 const taskList = ref([])
+const selectedTaskId = ref(null)
 const mySubmissions = ref([])
 const teacherSubmissions = ref([])
 
+// 加载状态控制
+const uploadingTaskId = ref(null)
+
 const dialogVisible = ref(false)
+const taskDialogVisible = ref(false)
 const currentGradeItem = ref({})
 const gradeForm = ref({ score: 90, feedback: '' })
+const newTaskForm = ref({
+  title: '',
+  content: '',
+  deadline: '2026-10-20T23:59:59',
+  maxScore: 100
+})
+
+const formatTime = (timeStr) => {
+  if (!timeStr) return '-'
+  return timeStr.replace('T', ' ')
+}
+
+const getSubmission = (taskId) => {
+  return mySubmissions.value.find(s => s.taskId === taskId)
+}
 
 const switchRole = () => {
   if (currentRole.value === 'STUDENT') {
@@ -161,17 +283,20 @@ const switchRole = () => {
   }
 }
 
-// 1. 加载实验任务列表
+// 1. 加载任务
 const loadTasks = async () => {
   try {
     const res = await axios.get(`${API_BASE}/tasks`)
     taskList.value = res.data.data
+    if (taskList.value.length > 0 && !selectedTaskId.value) {
+      selectedTaskId.value = taskList.value[0].id
+    }
   } catch (e) {
-    ElMessage.error('获取实验任务失败，请确认后端 8080 端口已启动')
+    ElMessage.error('获取实验任务失败')
   }
 }
 
-// 2. 加载学生自己的提交历史 (李同学 ID: 2)
+// 2. 加载学生提交记录
 const loadMySubmissions = async () => {
   try {
     const res = await axios.get(`${API_BASE}/submissions/student/2`)
@@ -181,35 +306,96 @@ const loadMySubmissions = async () => {
   }
 }
 
-// 3. 加载教师端所有学生提交 (任务 ID: 1)
+// 3. 加载教师端选定任务的正式提交
 const loadTaskSubmissions = async () => {
+  if (!selectedTaskId.value) return
   try {
-    const res = await axios.get(`${API_BASE}/submissions/task/1`)
+    const res = await axios.get(`${API_BASE}/submissions/task/${selectedTaskId.value}`)
     teacherSubmissions.value = res.data.data
   } catch (e) {
     console.error(e)
   }
 }
 
-// 4. 学生上传报告文件成功
-const handleUploadSuccess = async (response, taskId) => {
+// 4. 上传前：开启按钮 Loading
+const handleBeforeUpload = (taskId) => {
+  uploadingTaskId.value = taskId
+  ElMessage.info('文件上传处理中，请稍候...')
+}
+
+// 5. 上传成功：存入草稿箱
+const handleUploadSuccess = async (response, file, taskId) => {
+  uploadingTaskId.value = null
   if (response.code === 200) {
-    ElMessage.success('附件上传成功，正在记录提交信息...')
-    await axios.post(`${API_BASE}/submit`, {
-      taskId: taskId,
-      studentId: 2,
-      fileName: '李同学_Java实战实验报告.pdf',
-      fileUrl: response.data,
-      fileSize: 102400
-    })
-    ElMessage.success('实验报告提交成功！')
-    loadMySubmissions()
+    try {
+      const res = await axios.post(`${API_BASE}/draft`, {
+        taskId: taskId,
+        studentId: 2,
+        fileName: file.name,
+        fileUrl: response.data,
+        fileSize: file.size
+      })
+      if (res.data.code === 200) {
+        ElMessage.success('报告已存入草稿箱！请在下方表格中点击【确认正式提交】。')
+        loadMySubmissions()
+      } else {
+        ElMessage.error(res.data.message)
+      }
+    } catch (e) {
+      ElMessage.error('保存草稿失败')
+    }
   } else {
     ElMessage.error(response.message || '上传失败')
   }
 }
 
-// 5. 打开打分弹窗
+// 6. 上传失败兜底
+const handleUploadError = () => {
+  uploadingTaskId.value = null
+  ElMessage.error('上传超时或网络异常，请重试')
+}
+
+// 7. 正式确认提交
+const confirmFinalSubmit = async (taskId) => {
+  try {
+    const res = await axios.post(`${API_BASE}/confirm-submit`, {
+      taskId: taskId,
+      studentId: 2
+    })
+    if (res.data.code === 200) {
+      ElMessage.success(res.data.message)
+      loadMySubmissions()
+    } else {
+      ElMessage.error(res.data.message)
+    }
+  } catch (e) {
+    ElMessage.error('提交失败')
+  }
+}
+
+const promptReupload = () => {
+  ElMessage.info('请在对应实验卡片上点击【重新上传/更新草稿】，上传后再确认提交。')
+}
+
+// 8. 教师发布新实验
+const submitNewTask = async () => {
+  if (!newTaskForm.value.title || !newTaskForm.value.content) {
+    ElMessage.warning('请填写完整的实验标题与要求')
+    return
+  }
+  try {
+    await axios.post(`${API_BASE}/tasks`, newTaskForm.value)
+    ElMessage.success('新实验任务发布成功！')
+    taskDialogVisible.value = false
+    newTaskForm.value.title = ''
+    newTaskForm.value.content = ''
+    await loadTasks()
+  } catch (e) {
+    ElMessage.error('发布任务失败')
+  }
+}
+
+// 9. 教师打分
 const openGradeDialog = (row) => {
   currentGradeItem.value = row
   gradeForm.value.score = row.score || 88
@@ -217,7 +403,6 @@ const openGradeDialog = (row) => {
   dialogVisible.value = true
 }
 
-// 6. 提交打分
 const submitGrade = async () => {
   try {
     await axios.post(`${API_BASE}/grade`, {
@@ -234,8 +419,14 @@ const submitGrade = async () => {
   }
 }
 
-onMounted(() => {
-  loadTasks()
+// 10. 教师一键打包下载全部正式报告
+const downloadAllZip = () => {
+  if (!selectedTaskId.value) return
+  window.open(`${API_BASE}/submissions/task/${selectedTaskId.value}/export-zip`)
+}
+
+onMounted(async () => {
+  await loadTasks()
   loadMySubmissions()
 })
 </script>

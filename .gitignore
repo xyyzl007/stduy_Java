@@ -3,4 +3,4 @@ target/
 .idea/
 *.iml
 lab-web/node_modules/
-lab-web/dist/
+cd lab-web
