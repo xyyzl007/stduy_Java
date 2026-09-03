@@ -1,462 +1,1080 @@
 <template>
-  <div class="common-layout">
-    <!-- 顶部导航栏 -->
-    <el-header class="header">
-      <div class="logo">
-        <el-icon :size="24"><Reading /></el-icon>
-        <span style="margin-left: 10px; font-weight: bold; font-size: 18px;">学生实验报告提交与批阅系统</span>
-      </div>
-      <div class="user-info">
-        <el-radio-group v-model="currentRole" size="small" @change="switchRole">
-          <el-radio-button label="STUDENT">当前身份：李同学 (学生端)</el-radio-button>
-          <el-radio-button label="TEACHER">切换为：张老师 (教师端)</el-radio-button>
-        </el-radio-group>
-      </div>
-    </el-header>
+  <div class="system-container">
+    <!-- ================= 1. 未登录：现代科技感居中登录/注册卡片 ================= -->
+    <div v-if="!currentUser" class="login-wrapper">
+      <div class="login-box">
+        <div class="login-header">
+          <div class="icon-badge"><el-icon :size="32" color="#ffffff"><Reading /></el-icon></div>
+          <h2 class="title">学生实验报告提交与批阅系统</h2>
+          <p class="subtitle">江苏科技大学 · Java后端开发实战课程集中实践系统</p>
+        </div>
 
-    <el-main class="main-body">
-      <!-- ================= 学生端视图 ================= -->
-      <div v-if="currentRole === 'STUDENT'">
-        <el-alert
-            title="系统规则提醒：上传附件后将暂存于【草稿箱】（教师不可见）。请在截止前点击【确认提交】，截止期内支持最多 3 次修改重传。若截止仍未手动确认，系统将自动提交草稿。"
-            type="info"
-            show-icon
-            :closable="false"
-            style="margin-bottom: 20px;"
-        />
+        <el-tabs v-model="authTab" stretch class="custom-tabs">
+          <!-- 登录表单 -->
+          <el-tab-pane label="系统登录" name="login">
+            <el-form :model="loginForm" label-position="top" style="margin-top: 15px;">
+              <el-form-item label="登录账号 (学号 / 工号)">
+                <el-input v-model="loginForm.username" :prefix-icon="UserFilled" placeholder="如: S2026001 / T2026001" size="large" />
+              </el-form-item>
+              <el-form-item label="登录密码">
+                <el-input v-model="loginForm.password" :prefix-icon="Lock" type="password" show-password placeholder="请输入密码" size="large" />
+              </el-form-item>
+              <el-button type="primary" size="large" class="submit-btn" @click="handleLogin">登录工作台</el-button>
+            </el-form>
+          </el-tab-pane>
 
-        <!-- 实验任务列表 -->
-        <el-row :gutter="20">
-          <el-col :span="24" v-for="task in taskList" :key="task.id" style="margin-bottom: 20px;">
-            <el-card shadow="hover">
-              <template #header>
-                <div class="card-header">
-                  <span style="font-weight: bold; font-size: 16px;">{{ task.title }}</span>
-                  <el-tag type="danger">满分: {{ task.maxScore }}分</el-tag>
-                </div>
-              </template>
-              <p style="color: #444; font-size: 14px; line-height: 1.6;"><strong>实验任务要求：</strong>{{ task.content }}</p>
-              <p style="color: #888; font-size: 13px;"><strong>截止提交时间：</strong>{{ formatTime(task.deadline) }}</p>
-
-              <!-- 上传到草稿箱区域 (已移除 limit 限制，解决卡顿无反应问题) -->
-              <div style="margin-top: 15px; display: flex; align-items: center; gap: 15px;">
-                <el-upload
-                    action="http://localhost:8080/api/lab/upload"
-                    :before-upload="() => handleBeforeUpload(task.id)"
-                    :on-success="(res, file) => handleUploadSuccess(res, file, task.id)"
-                    :on-error="handleUploadError"
-                    :show-file-list="false"
-                >
-                  <el-button
-                      type="primary"
-                      :icon="Upload"
-                      :loading="uploadingTaskId === task.id"
-                  >
-                    {{ uploadingTaskId === task.id ? '正在上传中...' : (getSubmission(task.id) ? '重新上传/更新草稿' : '上传报告至草稿箱') }}
-                  </el-button>
-                </el-upload>
-
-                <span v-if="getSubmission(task.id)" style="font-size: 13px; color: #606266;">
-                  当前暂存文件：<strong style="color: #409EFF;">{{ getSubmission(task.id).fileName }}</strong>
-                </span>
-              </div>
-            </el-card>
-          </el-col>
-        </el-row>
-
-        <!-- 我的提交记录与草稿箱 -->
-        <el-card shadow="never" style="margin-top: 10px;">
-          <template #header>
-            <span style="font-weight: bold;">我的实验报告提交记录与草稿管理</span>
-          </template>
-          <el-table :data="mySubmissions" stripe style="width: 100%">
-            <el-table-column prop="taskTitle" label="实验任务" />
-            <el-table-column label="附件文件">
-              <template #default="{ row }">
-                <el-link type="primary" :href="'http://localhost:8080' + row.fileUrl" target="_blank">
-                  {{ row.fileName }}
-                </el-link>
-              </template>
-            </el-table-column>
-            <el-table-column prop="submitTime" label="更新/提交时间" width="170">
-              <template #default="{ row }">{{ formatTime(row.submitTime) }}</template>
-            </el-table-column>
-            <el-table-column label="状态" width="140">
-              <template #default="{ row }">
-                <el-tag v-if="row.status === 'DRAFT'" type="info">草稿箱 (待确认)</el-tag>
-                <el-tag v-else-if="row.status === 'SUBMITTED'" type="warning">已正式提交</el-tag>
-                <el-tag v-else-if="row.status === 'GRADED'" type="success">已批阅</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="已用修改次数" width="130">
-              <template #default="{ row }">
-                <span>{{ row.submitCount }} / 3 次</span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="score" label="成绩" width="100">
-              <template #default="{ row }">
-                <span v-if="row.score !== null" style="color: #67C23A; font-weight: bold;">{{ row.score }} 分</span>
-                <span v-else style="color: #909399;">-</span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="feedback" label="教师评语" />
-            <el-table-column label="操作" width="150" fixed="right">
-              <template #default="{ row }">
-                <!-- 只要是草稿，或者正式提交后次数 < 3，都可以确认/重交 -->
-                <el-button
-                    v-if="row.status === 'DRAFT'"
-                    type="success"
-                    size="small"
-                    @click="confirmFinalSubmit(row.taskId)"
-                >
-                  确认正式提交
-                </el-button>
-                <el-button
-                    v-else-if="row.status === 'SUBMITTED' && row.submitCount < 3"
-                    type="primary"
-                    plain
-                    size="small"
-                    @click="promptReupload"
-                >
-                  申请修改重传
-                </el-button>
-                <span v-else-if="row.submitCount >= 3" style="font-size: 12px; color: #F56C6C;">已达修改上限</span>
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-card>
-      </div>
-
-      <!-- ================= 教师端视图 ================= -->
-      <div v-else>
-        <el-alert title="欢迎进入教师管理台：系统已严格隔离学生草稿，此列表仅展示学生正式确认提交的报告。支持一键打包 ZIP。" type="success" show-icon :closable="false" style="margin-bottom: 20px;" />
-
-        <el-card shadow="never">
-          <template #header>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <div style="display: flex; align-items: center; gap: 15px;">
-                <span style="font-weight: bold;">查看实验任务：</span>
-                <el-select v-model="selectedTaskId" placeholder="选择任务" style="width: 280px;" @change="loadTaskSubmissions">
-                  <el-option v-for="t in taskList" :key="t.id" :label="t.title" :value="t.id" />
+          <!-- 注册表单 -->
+          <el-tab-pane label="注册新账号" name="register">
+            <el-form :model="regForm" label-position="top" style="margin-top: 10px;">
+              <el-form-item label="身份类型">
+                <el-radio-group v-model="regForm.role">
+                  <el-radio-button label="ROLE_STUDENT">学生</el-radio-button>
+                  <el-radio-button label="ROLE_TEACHER">教师</el-radio-button>
+                </el-radio-group>
+              </el-form-item>
+              <el-row :gutter="12">
+                <el-col :span="12">
+                  <el-form-item label="学号/工号"><el-input v-model="regForm.username" placeholder="登录账号" /></el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="真实姓名"><el-input v-model="regForm.realName" placeholder="姓名" /></el-form-item>
+                </el-col>
+              </el-row>
+              <el-form-item label="登录密码"><el-input v-model="regForm.password" type="password" show-password placeholder="设置密码" /></el-form-item>
+              <el-form-item v-if="regForm.role === 'ROLE_STUDENT'" label="所属行政班级">
+                <el-select v-model="regForm.classId" placeholder="选择行政班级" style="width: 100%;">
+                  <el-option v-for="c in classList" :key="c.id" :label="c.className" :value="c.id" />
                 </el-select>
-              </div>
-              <div>
-                <el-button type="success" :icon="Plus" @click="taskDialogVisible = true">发布新实验任务</el-button>
-                <el-button type="warning" :icon="Download" @click="downloadAllZip">打包下载全部报告 (ZIP)</el-button>
-                <el-button type="primary" size="default" @click="loadTaskSubmissions">刷新列表</el-button>
-              </div>
-            </div>
-          </template>
-
-          <el-table :data="teacherSubmissions" border style="width: 100%">
-            <el-table-column prop="studentName" label="提交学生" width="140" />
-            <el-table-column label="报告附件 (点击下载/预览)">
-              <template #default="{ row }">
-                <el-link type="primary" :href="'http://localhost:8080' + row.fileUrl" target="_blank">
-                  {{ row.fileName }}
-                </el-link>
-              </template>
-            </el-table-column>
-            <el-table-column prop="submitTime" label="提交时间" width="180">
-              <template #default="{ row }">{{ formatTime(row.submitTime) }}</template>
-            </el-table-column>
-            <el-table-column label="修改版本" width="110">
-              <template #default="{ row }">第 {{ row.submitCount }} 版</template>
-            </el-table-column>
-            <el-table-column label="批阅状态" width="120">
-              <template #default="{ row }">
-                <el-tag v-if="row.status === 'GRADED'" type="success">已批阅</el-tag>
-                <el-tag v-else type="danger">待批阅</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="score" label="当前成绩" width="120">
-              <template #default="{ row }">
-                <span v-if="row.score !== null" style="font-weight: bold; color: #409EFF;">{{ row.score }} 分</span>
-                <span v-else>-</span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="feedback" label="教师评语" />
-            <el-table-column label="操作" width="150" fixed="right">
-              <template #default="{ row }">
-                <el-button type="primary" size="small" @click="openGradeDialog(row)">在线打分/评语</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-card>
-
-        <!-- 教师发布新任务弹窗 -->
-        <el-dialog v-model="taskDialogVisible" title="发布新实验任务" width="550px">
-          <el-form label-width="110px">
-            <el-form-item label="实验标题">
-              <el-input v-model="newTaskForm.title" placeholder="如：实验三：Vue组件化开发" />
-            </el-form-item>
-            <el-form-item label="满分值">
-              <el-input-number v-model="newTaskForm.maxScore" :min="10" :max="100" />
-            </el-form-item>
-            <el-form-item label="截止时间">
-              <el-date-picker
-                  v-model="newTaskForm.deadline"
-                  type="datetime"
-                  placeholder="选择截止日期与时间"
-                  value-format="YYYY-MM-DDTHH:mm:ss"
-                  style="width: 100%;"
-              />
-            </el-form-item>
-            <el-form-item label="实验要求内容">
-              <el-input v-model="newTaskForm.content" type="textarea" :rows="4" placeholder="请详细输入实验要求..." />
-            </el-form-item>
-          </el-form>
-          <template #footer>
-            <el-button @click="taskDialogVisible = false">取消</el-button>
-            <el-button type="success" @click="submitNewTask">确认发布实验</el-button>
-          </template>
-        </el-dialog>
-
-        <!-- 批阅打分弹窗 -->
-        <el-dialog v-model="dialogVisible" title="实验报告在线批阅与评分" width="500px">
-          <el-form label-width="90px">
-            <el-form-item label="学生姓名">
-              <el-input v-model="currentGradeItem.studentName" disabled />
-            </el-form-item>
-            <el-form-item label="报告文件">
-              <el-input v-model="currentGradeItem.fileName" disabled />
-            </el-form-item>
-            <el-form-item label="评分 (0-100)">
-              <el-input-number v-model="gradeForm.score" :min="0" :max="100" />
-            </el-form-item>
-            <el-form-item label="教师评语">
-              <el-input v-model="gradeForm.feedback" type="textarea" :rows="4" />
-            </el-form-item>
-          </el-form>
-          <template #footer>
-            <el-button @click="dialogVisible = false">取消</el-button>
-            <el-button type="primary" @click="submitGrade">提交批阅成绩</el-button>
-          </template>
-        </el-dialog>
+              </el-form-item>
+              <el-row :gutter="12">
+                <el-col :span="12"><el-form-item label="联系电话"><el-input v-model="regForm.phone" placeholder="手机号" /></el-form-item></el-col>
+                <el-col :span="12"><el-form-item label="电子邮箱"><el-input v-model="regForm.email" placeholder="邮箱" /></el-form-item></el-col>
+              </el-row>
+              <el-button type="success" size="large" class="submit-btn" @click="handleRegister">确认注册</el-button>
+            </el-form>
+          </el-tab-pane>
+        </el-tabs>
       </div>
-    </el-main>
+    </div>
+
+    <!-- ================= 2. 已登录：全屏自适应主系统 ================= -->
+    <div v-else class="app-layout">
+      <!-- 深蓝质感高校顶栏 -->
+      <el-header class="nav-header">
+        <div class="brand">
+          <div class="brand-icon"><el-icon :size="22" color="#ffffff"><Reading /></el-icon></div>
+          <div class="brand-text">
+            <span class="brand-title">学生实验报告提交与批阅系统</span>
+            <span class="brand-sub">Jiangsu University of Science and Technology · 教学实战平台</span>
+          </div>
+        </div>
+        <div class="user-panel">
+          <div class="user-pill">
+            <span class="role-badge" :class="currentUser.role === 'ROLE_TEACHER' ? 'bg-tag-teacher' : 'bg-tag-student'">
+              {{ currentUser.role === 'ROLE_TEACHER' ? '授课教师' : '在籍学生' }}
+            </span>
+            <span class="uname">{{ currentUser.realName }}</span>
+            <span class="uid">({{ currentUser.username }})</span>
+          </div>
+          <el-button round size="small" class="nav-action-btn" :icon="UserFilled" @click="profileDialogVisible = true">个人中心</el-button>
+          <el-button round size="small" type="danger" plain class="nav-logout-btn" :icon="SwitchButton" @click="handleLogout">退出</el-button>
+        </div>
+      </el-header>
+
+      <!-- 流式自适应内容区 (放宽至 1560px) -->
+      <main class="main-content">
+        <!-- ================= 学生端视图 ================= -->
+        <div v-if="currentUser.role === 'ROLE_STUDENT'">
+          <!-- 数据看板 -->
+          <el-row :gutter="18" class="metric-row">
+            <el-col :span="6">
+              <div class="metric-card card-cyan">
+                <div class="metric-text"><div class="num">{{ taskList.length }}</div><div class="txt">学期实验总数</div></div>
+                <div class="icon-wrap"><el-icon><Tickets /></el-icon></div>
+              </div>
+            </el-col>
+            <el-col :span="6">
+              <div class="metric-card card-amber">
+                <div class="metric-text"><div class="num">{{ countDrafts }}</div><div class="txt">草稿箱待确认</div></div>
+                <div class="icon-wrap"><el-icon><EditPen /></el-icon></div>
+              </div>
+            </el-col>
+            <el-col :span="6">
+              <div class="metric-card card-blue">
+                <div class="metric-text"><div class="num">{{ countSubmitted }}</div><div class="txt">已正式提交</div></div>
+                <div class="icon-wrap"><el-icon><CircleCheck /></el-icon></div>
+              </div>
+            </el-col>
+            <el-col :span="6">
+              <div class="metric-card card-emerald">
+                <div class="metric-text"><div class="num">{{ studentAvgScore }}</div><div class="txt">实验平均分</div></div>
+                <div class="icon-wrap"><el-icon><Trophy /></el-icon></div>
+              </div>
+            </el-col>
+          </el-row>
+
+          <div class="tips-banner">
+            <el-icon :size="18"><InfoFilled /></el-icon>
+            <span><strong>提交机制提醒：</strong>附件上传后将安全保存在【草稿箱】（教师端不可见）。核实无误后请点击【确认提交】，截止前最多可修改 3 次。到达截止时间若未手动提交，系统将自动提交草稿。</span>
+          </div>
+
+          <!-- 实验任务卡片 -->
+          <div class="content-block">
+            <div class="block-header">
+              <span class="title"><el-icon><Document /></el-icon> 实验任务发布专区</span>
+              <span class="desc">点击下方卡片上传实验报告附件 (PDF/Word)</span>
+            </div>
+
+            <el-row :gutter="20">
+              <el-col :span="12" v-for="task in taskList" :key="task.id" style="margin-bottom: 20px;">
+                <div class="task-card">
+                  <div class="task-card-top">
+                    <span class="t-name">{{ task.title }}</span>
+                    <span class="max-score-badge">满分 {{ task.maxScore }} 分</span>
+                  </div>
+                  <div class="t-body">
+                    <p><strong>实验要求：</strong>{{ task.content }}</p>
+                    <div class="t-time"><el-icon><Calendar /></el-icon> 截止时间：{{ formatTime(task.deadline) }}</div>
+                  </div>
+                  <div class="task-card-footer">
+                    <el-upload
+                        action="http://localhost:8080/api/lab/upload"
+                        :before-upload="() => handleBeforeUpload(task.id)"
+                        :on-success="(res, file) => handleUploadSuccess(res, file, task.id)"
+                        :show-file-list="false"
+                    >
+                      <el-button type="primary" :icon="Upload" :loading="uploadingTaskId === task.id">
+                        {{ uploadingTaskId === task.id ? '正在上传...' : (getSubmission(task.id) ? '重新上传/更新草稿' : '上传报告至草稿箱') }}
+                      </el-button>
+                    </el-upload>
+                    <div v-if="getSubmission(task.id)" class="file-tag">
+                      已暂存: <span>{{ getSubmission(task.id).fileName }}</span>
+                    </div>
+                  </div>
+                </div>
+              </el-col>
+            </el-row>
+          </div>
+
+          <!-- 提交记录表格 -->
+          <div class="content-block" style="margin-top: 20px;">
+            <div class="block-header">
+              <span class="title"><el-icon><FolderOpened /></el-icon> 我的实验提交记录与批阅反馈</span>
+              <el-button size="small" :icon="Refresh" @click="loadMySubmissions">刷新列表</el-button>
+            </div>
+
+            <el-table :data="mySubmissions" stripe border style="width: 100%" class="custom-table">
+              <el-table-column prop="taskTitle" label="实验任务" min-width="180" />
+              <el-table-column label="附件报告" min-width="220">
+                <template #default="{ row }">
+                  <el-link type="primary" :href="'http://localhost:8080' + row.fileUrl" target="_blank" :icon="Document">
+                    {{ row.fileName }}
+                  </el-link>
+                </template>
+              </el-table-column>
+              <el-table-column prop="submitTime" label="更新/提交时间" width="170">
+                <template #default="{ row }">{{ formatTime(row.submitTime) }}</template>
+              </el-table-column>
+              <el-table-column label="流转状态" width="140">
+                <template #default="{ row }">
+                  <span v-if="row.status === 'DRAFT'" class="badge badge-gray">草稿箱 (待确认)</span>
+                  <span v-else-if="row.status === 'SUBMITTED'" class="badge badge-yellow">已正式提交</span>
+                  <span v-else-if="row.status === 'GRADED'" class="badge badge-green">已完成批阅</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="已用修改次数" width="140">
+                <template #default="{ row }">
+                  <el-progress :percentage="(row.submitCount / 3) * 100" :format="() => `${row.submitCount}/3次`" :status="row.submitCount >= 3 ? 'exception' : ''" />
+                </template>
+              </el-table-column>
+              <el-table-column prop="score" label="量化得分" width="110">
+                <template #default="{ row }">
+                  <span v-if="row.score !== null" class="score-highlight">{{ row.score }} 分</span>
+                  <span v-else style="color: #aaa;">暂无</span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="feedback" label="教师评语" min-width="180" />
+              <el-table-column label="操作" width="140" fixed="right">
+                <template #default="{ row }">
+                  <el-button v-if="row.status === 'DRAFT'" type="success" size="small" @click="confirmFinalSubmit(row.taskId)">确认正式提交</el-button>
+                  <span v-else-if="row.submitCount >= 3" style="color: #f56c6c; font-size: 12px;">已达修改上限</span>
+                  <span v-else style="color: #409eff; font-size: 12px;">截止前可重传</span>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </div>
+
+        <!-- ================= 教师端视图 ================= -->
+        <div v-else>
+          <!-- 教师看板 -->
+          <el-row :gutter="18" class="metric-row">
+            <el-col :span="6">
+              <div class="metric-card card-cyan">
+                <div class="metric-text"><div class="num">{{ taskList.length }}</div><div class="txt">已发布实验任务</div></div>
+                <div class="icon-wrap"><el-icon><Tickets /></el-icon></div>
+              </div>
+            </el-col>
+            <el-col :span="6">
+              <div class="metric-card card-amber">
+                <div class="metric-text"><div class="num">{{ teacherSubmissions.length }}</div><div class="txt">收到正式报告 (份)</div></div>
+                <div class="icon-wrap"><el-icon><Files /></el-icon></div>
+              </div>
+            </el-col>
+            <el-col :span="6">
+              <div class="metric-card card-blue">
+                <div class="metric-text"><div class="num">{{ teacherPendingCount }}</div><div class="txt">待批阅人数</div></div>
+                <div class="icon-wrap"><el-icon><Clock /></el-icon></div>
+              </div>
+            </el-col>
+            <el-col :span="6">
+              <div class="metric-card card-emerald">
+                <div class="metric-text"><div class="num">{{ teacherGradedRate }}%</div><div class="txt">整体批改完成率</div></div>
+                <div class="icon-wrap"><el-icon><Histogram /></el-icon></div>
+              </div>
+            </el-col>
+          </el-row>
+
+          <!-- 教师综合管理多标签卡片 -->
+          <div class="content-block teacher-box">
+            <el-tabs v-model="teacherActiveTab" type="border-card" class="modern-tabs">
+              <!-- 标签 1: 实验报告批阅与归档 -->
+              <el-tab-pane name="reviews">
+                <template #label><span class="tab-title"><el-icon><DocumentChecked /></el-icon> 实验报告批阅与归档</span></template>
+
+                <div class="action-bar">
+                  <div class="bar-left">
+                    <span class="label-text">筛选实验任务：</span>
+                    <el-select v-model="selectedTaskId" placeholder="选择任务" style="width: 320px;" @change="loadTaskSubmissions">
+                      <el-option v-for="t in taskList" :key="t.id" :label="t.title" :value="t.id" />
+                    </el-select>
+                  </div>
+                  <div class="bar-right">
+                    <el-button type="success" :icon="Plus" @click="taskDialogVisible = true">发布新实验</el-button>
+                    <el-button type="warning" :icon="Download" @click="downloadAllZip">打包下载全部报告 (ZIP)</el-button>
+                    <el-button type="primary" :icon="Refresh" @click="loadTaskSubmissions">刷新列表</el-button>
+                  </div>
+                </div>
+
+                <el-table :data="teacherSubmissions" border stripe style="width: 100%" class="custom-table">
+                  <el-table-column prop="studentName" label="提交学生" width="130" />
+                  <el-table-column label="报告附件 (点击下载/预览)" min-width="240">
+                    <template #default="{ row }">
+                      <el-link type="primary" :href="'http://localhost:8080' + row.fileUrl" target="_blank" :icon="Document">
+                        {{ row.fileName }}
+                      </el-link>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="submitTime" label="提交时间" width="170">
+                    <template #default="{ row }">{{ formatTime(row.submitTime) }}</template>
+                  </el-table-column>
+                  <el-table-column label="修改版本" width="100">
+                    <template #default="{ row }">第 {{ row.submitCount }} 版</template>
+                  </el-table-column>
+                  <el-table-column label="批阅状态" width="110">
+                    <template #default="{ row }">
+                      <el-tag v-if="row.status === 'GRADED'" type="success" effect="dark">已批阅</el-tag>
+                      <el-tag v-else type="danger" effect="dark">待批阅</el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="score" label="量化得分" width="110">
+                    <template #default="{ row }">
+                      <span v-if="row.score !== null" class="score-highlight">{{ row.score }} 分</span>
+                      <span v-else>-</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="feedback" label="教师评语" min-width="180" />
+                  <el-table-column label="操作" width="130" fixed="right">
+                    <template #default="{ row }">
+                      <el-button type="primary" size="small" :icon="Edit" @click="openGradeDialog(row)">在线打分</el-button>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </el-tab-pane>
+
+              <!-- 标签 2: 班级管理 -->
+              <el-tab-pane name="classes">
+                <template #label><span class="tab-title"><el-icon><School /></el-icon> 行政班级管理</span></template>
+                <div class="action-bar">
+                  <span class="label-text">已开设行政班级名录</span>
+                  <el-button type="primary" :icon="Plus" @click="classDialogVisible = true">新建行政班级</el-button>
+                </div>
+                <el-table :data="classList" border stripe style="width: 100%" class="custom-table">
+                  <el-table-column prop="id" label="班级ID" width="100" />
+                  <el-table-column prop="className" label="班级全称" min-width="220" />
+                  <el-table-column prop="gradeYear" label="所属年级" width="160" />
+                  <el-table-column prop="createdAt" label="创建时间" width="200">
+                    <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
+                  </el-table-column>
+                </el-table>
+              </el-tab-pane>
+
+              <!-- 标签 3: 课程管理 -->
+              <el-tab-pane name="courses">
+                <template #label><span class="tab-title"><el-icon><Management /></el-icon> 授课课程管理</span></template>
+                <div class="action-bar">
+                  <span class="label-text">主讲课程开设列表</span>
+                  <el-button type="primary" :icon="Plus" @click="courseDialogVisible = true">开设新课程</el-button>
+                </div>
+                <el-table :data="courseList" border stripe style="width: 100%" class="custom-table">
+                  <el-table-column prop="courseCode" label="课程代码" width="140" />
+                  <el-table-column prop="courseName" label="课程全称" min-width="220" />
+                  <el-table-column prop="teacherName" label="主讲教师" width="140" />
+                  <el-table-column prop="semester" label="开课学期" width="160" />
+                  <el-table-column prop="description" label="课程大纲描述" min-width="240" />
+                </el-table>
+              </el-tab-pane>
+
+              <!-- 标签 4: 学生名单管理 -->
+              <el-tab-pane name="students">
+                <template #label><span class="tab-title"><el-icon><User /></el-icon> 学生名单管理</span></template>
+                <div class="action-bar">
+                  <div class="bar-left">
+                    <span class="label-text">筛选行政班级：</span>
+                    <el-select v-model="filterClassId" clearable placeholder="查看全部班级学生" style="width: 260px;" @change="loadStudentList">
+                      <el-option v-for="c in classList" :key="c.id" :label="c.className" :value="c.id" />
+                    </el-select>
+                  </div>
+                  <el-button type="primary" :icon="Refresh" @click="loadStudentList">刷新名单</el-button>
+                </div>
+                <el-table :data="studentList" border stripe style="width: 100%" class="custom-table">
+                  <el-table-column prop="username" label="学号" width="160" />
+                  <el-table-column prop="realName" label="学生姓名" width="160" />
+                  <el-table-column prop="className" label="所属行政班级" width="220" />
+                  <el-table-column prop="phone" label="联系电话" width="160" />
+                  <el-table-column prop="email" label="联系邮箱" min-width="220" />
+                </el-table>
+              </el-tab-pane>
+            </el-tabs>
+          </div>
+        </div>
+      </main>
+
+      <!-- 稳重大气的高校系统版权 Footer -->
+      <footer class="app-footer">
+        <p>江苏科技大学 · Java后端开发实战课程集中实践项目</p>
+        <p class="tech-stack">架构支持: Spring Boot 3.2.5 + Vue 3 + Element Plus + MySQL 8.x | 仓库管理: Gitee</p>
+      </footer>
+    </div>
+
+    <!-- ================= 弹窗集合 ================= -->
+
+    <!-- 弹窗：在线打分 -->
+    <el-dialog v-model="dialogVisible" title="实验报告在线批阅与评分" width="560px">
+      <el-form label-width="90px">
+        <el-form-item label="学生姓名"><el-input v-model="currentGradeItem.studentName" disabled /></el-form-item>
+        <el-form-item label="报告附件"><el-input v-model="currentGradeItem.fileName" disabled /></el-form-item>
+        <el-form-item label="量化得分">
+          <el-input-number v-model="gradeForm.score" :min="0" :max="100" size="large" style="width: 180px;" />
+          <span style="margin-left: 10px; color: #888;">分 (满分100)</span>
+        </el-form-item>
+        <el-form-item label="快捷评语">
+          <div class="quick-tags">
+            <el-tag class="tag-click" @click="appendFeedback('代码架构规范，逻辑严谨，实验完成度高。')">+ 优秀模板</el-tag>
+            <el-tag class="tag-click" type="warning" @click="appendFeedback('实验步骤完整，但缺少必要的异常处理，建议完善。')">+ 改进建议</el-tag>
+            <el-tag class="tag-click" type="danger" @click="appendFeedback('报告排版较为凌乱，缺少关键结果截图，请注意规范。')">+ 规范提醒</el-tag>
+          </div>
+        </el-form-item>
+        <el-form-item label="指导评语">
+          <el-input v-model="gradeForm.feedback" type="textarea" :rows="4" placeholder="请输入指导评语..." />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitGrade">提交批阅成绩</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 弹窗：发布实验 -->
+    <el-dialog v-model="taskDialogVisible" title="发布新实验任务" width="550px">
+      <el-form label-width="110px">
+        <el-form-item label="实验标题"><el-input v-model="newTaskForm.title" placeholder="如：实验三：Vue组件化实战" /></el-form-item>
+        <el-form-item label="考核满分"><el-input-number v-model="newTaskForm.maxScore" :min="10" :max="100" /></el-form-item>
+        <el-form-item label="截止时间">
+          <el-date-picker v-model="newTaskForm.deadline" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" style="width: 100%;" />
+        </el-form-item>
+        <el-form-item label="实验要求内容"><el-input v-model="newTaskForm.content" type="textarea" :rows="4" /></el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="taskDialogVisible = false">取消</el-button>
+        <el-button type="success" @click="submitNewTask">确认发布任务</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 弹窗：个人中心 -->
+    <el-dialog v-model="profileDialogVisible" title="个人中心 (资料与安全)" width="500px">
+      <el-tabs v-model="profileTab">
+        <el-tab-pane label="基本资料编辑" name="info">
+          <el-form :model="profileForm" label-width="90px">
+            <el-form-item label="学号/工号"><el-input v-model="profileForm.username" disabled /></el-form-item>
+            <el-form-item label="真实姓名"><el-input v-model="profileForm.realName" /></el-form-item>
+            <el-form-item label="联系电话"><el-input v-model="profileForm.phone" /></el-form-item>
+            <el-form-item label="联系邮箱"><el-input v-model="profileForm.email" /></el-form-item>
+            <el-button type="primary" style="margin-left: 90px;" @click="updateProfile">保存资料</el-button>
+          </el-form>
+        </el-tab-pane>
+        <el-tab-pane label="登录密码修改" name="pwd">
+          <el-form :model="pwdForm" label-width="90px">
+            <el-form-item label="原密码"><el-input v-model="pwdForm.oldPassword" type="password" show-password /></el-form-item>
+            <el-form-item label="新密码"><el-input v-model="pwdForm.newPassword" type="password" show-password /></el-form-item>
+            <el-button type="danger" style="margin-left: 90px;" @click="updatePassword">确认修改</el-button>
+          </el-form>
+        </el-tab-pane>
+      </el-tabs>
+    </el-dialog>
+
+    <!-- 弹窗：新建班级与课程 -->
+    <el-dialog v-model="classDialogVisible" title="开设新行政班级" width="450px">
+      <el-form label-width="90px">
+        <el-form-item label="班级全称"><el-input v-model="newClassForm.className" placeholder="如: 2023级软件工程1班" /></el-form-item>
+        <el-form-item label="所属年级"><el-input v-model="newClassForm.gradeYear" placeholder="如: 2023级" /></el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="classDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitNewClass">确认创建</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="courseDialogVisible" title="开设新主讲课程" width="500px">
+      <el-form label-width="90px">
+        <el-form-item label="课程代码"><el-input v-model="newCourseForm.courseCode" placeholder="如: CS301" /></el-form-item>
+        <el-form-item label="课程名称"><el-input v-model="newCourseForm.courseName" placeholder="如: 软件工程项目实战" /></el-form-item>
+        <el-form-item label="开课学期"><el-input v-model="newCourseForm.semester" placeholder="如: 2026-秋季" /></el-form-item>
+        <el-form-item label="课程简介"><el-input v-model="newCourseForm.description" type="textarea" :rows="3" /></el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="courseDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitNewCourse">确认开设</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { Reading, Upload, Plus, Download } from '@element-plus/icons-vue'
+import { ref, computed, onMounted } from 'vue'
+import {
+  Reading, Upload, Plus, Download, UserFilled, Lock, SwitchButton,
+  Document, EditPen, CircleCheck, Trophy, Tickets, Files, Clock, Histogram,
+  FolderOpened, Edit, School, Management, User, Refresh, Calendar, InfoFilled
+} from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import axios from 'axios'
 
-const API_BASE = 'http://localhost:8080/api/lab'
+const API_LAB = 'http://localhost:8080/api/lab'
+const API_AUTH = 'http://localhost:8080/api/auth'
+const API_MANAGE = 'http://localhost:8080/api/manage'
 
-const currentRole = ref('STUDENT')
+// 基础状态
+const currentUser = ref(null)
+const authTab = ref('login')
+const loginForm = ref({ username: 'T2026001', password: '123456' })
+const regForm = ref({ role: 'ROLE_STUDENT', username: '', realName: '', password: '', classId: null, phone: '', email: '' })
+
+// 个人中心
+const profileDialogVisible = ref(false)
+const profileTab = ref('info')
+const profileForm = ref({})
+const pwdForm = ref({ oldPassword: '', newPassword: '' })
+
+// 教师端状态
+const teacherActiveTab = ref('reviews')
 const taskList = ref([])
 const selectedTaskId = ref(null)
 const mySubmissions = ref([])
 const teacherSubmissions = ref([])
+const classList = ref([])
+const courseList = ref([])
+const studentList = ref([])
+const filterClassId = ref(null)
 
-// 加载状态控制
+// 弹窗表单状态
 const uploadingTaskId = ref(null)
-
 const dialogVisible = ref(false)
 const taskDialogVisible = ref(false)
+const classDialogVisible = ref(false)
+const courseDialogVisible = ref(false)
+
 const currentGradeItem = ref({})
 const gradeForm = ref({ score: 90, feedback: '' })
-const newTaskForm = ref({
-  title: '',
-  content: '',
-  deadline: '2026-10-20T23:59:59',
-  maxScore: 100
+const newTaskForm = ref({ title: '', content: '', deadline: '2026-10-30T23:59:59', maxScore: 100 })
+const newClassForm = ref({ className: '', gradeYear: '2023级' })
+const newCourseForm = ref({ courseCode: '', courseName: '', semester: '2026-秋季', description: '' })
+
+// 计算看板数据
+const countDrafts = computed(() => mySubmissions.value.filter(s => s.status === 'DRAFT').length)
+const countSubmitted = computed(() => mySubmissions.value.filter(s => s.status === 'SUBMITTED').length)
+const studentAvgScore = computed(() => {
+  const graded = mySubmissions.value.filter(s => s.score !== null)
+  if (!graded.length) return '暂无'
+  const sum = graded.reduce((acc, cur) => acc + Number(cur.score), 0)
+  return (sum / graded.length).toFixed(1)
+})
+const teacherPendingCount = computed(() => teacherSubmissions.value.filter(s => s.status !== 'GRADED').length)
+const teacherGradedRate = computed(() => {
+  if (!teacherSubmissions.value.length) return 0
+  const graded = teacherSubmissions.value.filter(s => s.status === 'GRADED').length
+  return Math.round((graded / teacherSubmissions.value.length) * 100)
 })
 
-const formatTime = (timeStr) => {
-  if (!timeStr) return '-'
-  return timeStr.replace('T', ' ')
+const formatTime = (t) => t ? t.replace('T', ' ') : '-'
+const getSubmission = (taskId) => mySubmissions.value.find(s => s.taskId === taskId)
+
+// 快捷评语
+const appendFeedback = (text) => {
+  gradeForm.value.feedback = text
 }
 
-const getSubmission = (taskId) => {
-  return mySubmissions.value.find(s => s.taskId === taskId)
-}
-
-const switchRole = () => {
-  if (currentRole.value === 'STUDENT') {
-    loadMySubmissions()
-  } else {
-    loadTaskSubmissions()
-  }
-}
-
-// 1. 加载任务
-const loadTasks = async () => {
+// 登录/注册
+const handleLogin = async () => {
   try {
-    const res = await axios.get(`${API_BASE}/tasks`)
-    taskList.value = res.data.data
-    if (taskList.value.length > 0 && !selectedTaskId.value) {
-      selectedTaskId.value = taskList.value[0].id
-    }
-  } catch (e) {
-    ElMessage.error('获取实验任务失败')
-  }
-}
-
-// 2. 加载学生提交记录
-const loadMySubmissions = async () => {
-  try {
-    const res = await axios.get(`${API_BASE}/submissions/student/2`)
-    mySubmissions.value = res.data.data
-  } catch (e) {
-    console.error(e)
-  }
-}
-
-// 3. 加载教师端选定任务的正式提交
-const loadTaskSubmissions = async () => {
-  if (!selectedTaskId.value) return
-  try {
-    const res = await axios.get(`${API_BASE}/submissions/task/${selectedTaskId.value}`)
-    teacherSubmissions.value = res.data.data
-  } catch (e) {
-    console.error(e)
-  }
-}
-
-// 4. 上传前：开启按钮 Loading
-const handleBeforeUpload = (taskId) => {
-  uploadingTaskId.value = taskId
-  ElMessage.info('文件上传处理中，请稍候...')
-}
-
-// 5. 上传成功：存入草稿箱
-const handleUploadSuccess = async (response, file, taskId) => {
-  uploadingTaskId.value = null
-  if (response.code === 200) {
-    try {
-      const res = await axios.post(`${API_BASE}/draft`, {
-        taskId: taskId,
-        studentId: 2,
-        fileName: file.name,
-        fileUrl: response.data,
-        fileSize: file.size
-      })
-      if (res.data.code === 200) {
-        ElMessage.success('报告已存入草稿箱！请在下方表格中点击【确认正式提交】。')
-        loadMySubmissions()
-      } else {
-        ElMessage.error(res.data.message)
-      }
-    } catch (e) {
-      ElMessage.error('保存草稿失败')
-    }
-  } else {
-    ElMessage.error(response.message || '上传失败')
-  }
-}
-
-// 6. 上传失败兜底
-const handleUploadError = () => {
-  uploadingTaskId.value = null
-  ElMessage.error('上传超时或网络异常，请重试')
-}
-
-// 7. 正式确认提交
-const confirmFinalSubmit = async (taskId) => {
-  try {
-    const res = await axios.post(`${API_BASE}/confirm-submit`, {
-      taskId: taskId,
-      studentId: 2
-    })
+    const res = await axios.post(`${API_AUTH}/login`, loginForm.value)
     if (res.data.code === 200) {
-      ElMessage.success(res.data.message)
-      loadMySubmissions()
+      currentUser.value = res.data.data
+      profileForm.value = { ...res.data.data }
+      ElMessage.success(`欢迎进入系统，${currentUser.value.realName}！`)
+      initDashboard()
     } else {
       ElMessage.error(res.data.message)
     }
   } catch (e) {
-    ElMessage.error('提交失败')
+    ElMessage.error('登录服务连接失败，请确认后端已启动')
   }
 }
 
-const promptReupload = () => {
-  ElMessage.info('请在对应实验卡片上点击【重新上传/更新草稿】，上传后再确认提交。')
-}
-
-// 8. 教师发布新实验
-const submitNewTask = async () => {
-  if (!newTaskForm.value.title || !newTaskForm.value.content) {
-    ElMessage.warning('请填写完整的实验标题与要求')
-    return
-  }
+const handleRegister = async () => {
   try {
-    await axios.post(`${API_BASE}/tasks`, newTaskForm.value)
-    ElMessage.success('新实验任务发布成功！')
-    taskDialogVisible.value = false
-    newTaskForm.value.title = ''
-    newTaskForm.value.content = ''
-    await loadTasks()
-  } catch (e) {
-    ElMessage.error('发布任务失败')
+    const res = await axios.post(`${API_AUTH}/register`, regForm.value)
+    if (res.data.code === 200) {
+      ElMessage.success('注册成功，请登录！')
+      authTab.value = 'login'
+      loginForm.value.username = regForm.value.username
+      loginForm.value.password = regForm.value.password
+    } else {
+      ElMessage.error(res.data.message)
+    }
+  } catch (e) { ElMessage.error('注册请求失败') }
+}
+
+const handleLogout = () => {
+  currentUser.value = null
+  ElMessage.info('已安全退出')
+}
+
+// 个人资料与密码
+const updateProfile = async () => {
+  const res = await axios.post(`${API_AUTH}/profile`, profileForm.value)
+  if (res.data.code === 200) {
+    currentUser.value = res.data.data
+    ElMessage.success('个人资料已保存！')
+    profileDialogVisible.value = false
   }
 }
 
-// 9. 教师打分
+const updatePassword = async () => {
+  const res = await axios.post(`${API_AUTH}/change-password`, {
+    userId: currentUser.value.id,
+    oldPassword: pwdForm.value.oldPassword,
+    newPassword: pwdForm.value.newPassword
+  })
+  if (res.data.code === 200) {
+    ElMessage.success(res.data.message)
+    pwdForm.value = { oldPassword: '', newPassword: '' }
+    profileDialogVisible.value = false
+  } else {
+    ElMessage.error(res.data.message)
+  }
+}
+
+// 数据加载
+const initDashboard = async () => {
+  loadTasks()
+  loadClasses()
+  loadCourses()
+  if (currentUser.value.role === 'ROLE_STUDENT') {
+    loadMySubmissions()
+  } else {
+    loadTaskSubmissions()
+    loadStudentList()
+  }
+}
+
+const loadTasks = async () => {
+  const res = await axios.get(`${API_LAB}/tasks`)
+  taskList.value = res.data.data
+  if (taskList.value.length > 0 && !selectedTaskId.value) {
+    selectedTaskId.value = taskList.value[0].id
+  }
+}
+
+const loadMySubmissions = async () => {
+  const res = await axios.get(`${API_LAB}/submissions/student/${currentUser.value.id}`)
+  mySubmissions.value = res.data.data
+}
+
+const loadTaskSubmissions = async () => {
+  if (!selectedTaskId.value) return
+  const res = await axios.get(`${API_LAB}/submissions/task/${selectedTaskId.value}`)
+  teacherSubmissions.value = res.data.data
+}
+
+const loadClasses = async () => {
+  const res = await axios.get(`${API_MANAGE}/classes`)
+  classList.value = res.data.data
+}
+
+const loadCourses = async () => {
+  const res = await axios.get(`${API_MANAGE}/courses`)
+  courseList.value = res.data.data
+}
+
+const loadStudentList = async () => {
+  const url = filterClassId.value ? `${API_MANAGE}/students?classId=${filterClassId.value}` : `${API_MANAGE}/students`
+  const res = await axios.get(url)
+  studentList.value = res.data.data
+}
+
+// 业务操作
+const handleBeforeUpload = (taskId) => {
+  uploadingTaskId.value = taskId
+  ElMessage.info('正在上传文件到草稿箱...')
+}
+
+const handleUploadSuccess = async (response, file, taskId) => {
+  uploadingTaskId.value = null
+  if (response.code === 200) {
+    await axios.post(`${API_LAB}/draft`, {
+      taskId: taskId,
+      studentId: currentUser.value.id,
+      fileName: file.name,
+      fileUrl: response.data,
+      fileSize: file.size
+    })
+    ElMessage.success('附件已存入草稿箱！核实无误后请点击【确认正式提交】。')
+    loadMySubmissions()
+  }
+}
+
+const confirmFinalSubmit = async (taskId) => {
+  const res = await axios.post(`${API_LAB}/confirm-submit`, {
+    taskId: taskId,
+    studentId: currentUser.value.id
+  })
+  if (res.data.code === 200) {
+    ElMessage.success(res.data.message)
+    loadMySubmissions()
+  } else {
+    ElMessage.error(res.data.message)
+  }
+}
+
+const submitNewTask = async () => {
+  await axios.post(`${API_LAB}/tasks`, newTaskForm.value)
+  ElMessage.success('新实验任务发布成功！')
+  taskDialogVisible.value = false
+  loadTasks()
+}
+
+const submitNewClass = async () => {
+  await axios.post(`${API_MANAGE}/classes`, newClassForm.value)
+  ElMessage.success('新行政班级开设成功！')
+  classDialogVisible.value = false
+  loadClasses()
+}
+
+const submitNewCourse = async () => {
+  newCourseForm.value.teacherId = currentUser.value.id
+  await axios.post(`${API_MANAGE}/courses`, newCourseForm.value)
+  ElMessage.success('新课程开设成功！')
+  courseDialogVisible.value = false
+  loadCourses()
+}
+
 const openGradeDialog = (row) => {
   currentGradeItem.value = row
   gradeForm.value.score = row.score || 88
-  gradeForm.value.feedback = row.feedback || '实验设计合理，代码架构清晰，功能完整。'
+  gradeForm.value.feedback = row.feedback || '代码设计合理，逻辑严谨，实验完成度高。'
   dialogVisible.value = true
 }
 
 const submitGrade = async () => {
-  try {
-    await axios.post(`${API_BASE}/grade`, {
-      id: currentGradeItem.value.id,
-      score: gradeForm.value.score,
-      feedback: gradeForm.value.feedback,
-      teacherId: 1
-    })
-    ElMessage.success('成绩与评语提交成功！')
-    dialogVisible.value = false
-    loadTaskSubmissions()
-  } catch (e) {
-    ElMessage.error('打分提交失败')
-  }
+  await axios.post(`${API_LAB}/grade`, {
+    id: currentGradeItem.value.id,
+    score: gradeForm.value.score,
+    feedback: gradeForm.value.feedback,
+    teacherId: currentUser.value.id
+  })
+  ElMessage.success('打分与评语提交成功！')
+  dialogVisible.value = false
+  loadTaskSubmissions()
 }
 
-// 10. 教师一键打包下载全部正式报告
 const downloadAllZip = () => {
   if (!selectedTaskId.value) return
-  window.open(`${API_BASE}/submissions/task/${selectedTaskId.value}/export-zip`)
+  window.open(`${API_LAB}/submissions/task/${selectedTaskId.value}/export-zip`)
 }
 
-onMounted(async () => {
-  await loadTasks()
-  loadMySubmissions()
+onMounted(() => {
+  loadClasses()
 })
 </script>
 
 <style scoped>
-.common-layout {
+.system-container {
   min-height: 100vh;
-  background-color: #f5f7fa;
+  background: linear-gradient(180deg, #edf2f7 0%, #e2e8f0 100%);
+  color: #2d3748;
 }
-.header {
-  background-color: #ffffff;
-  border-bottom: 1px solid #dcdfe6;
+
+/* 登录视窗 */
+.login-wrapper {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
-  padding: 0 30px;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #102a45 0%, #1e3c72 50%, #2a5298 100%);
+}
+.login-box {
+  width: 480px;
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 35px 40px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+}
+.login-header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+.icon-badge {
+  width: 60px;
   height: 60px;
-}
-.logo {
-  display: flex;
+  background: #1e3c72;
+  border-radius: 50%;
+  display: inline-flex;
   align-items: center;
-  color: #409EFF;
+  justify-content: center;
+  margin-bottom: 12px;
 }
-.main-body {
-  max-width: 1100px;
-  margin: 20px auto;
+.login-header .title {
+  font-size: 20px;
+  color: #1a202c;
+  margin: 6px 0;
 }
-.card-header {
+.login-header .subtitle {
+  font-size: 13px;
+  color: #718096;
+}
+.submit-btn {
+  width: 100%;
+  margin-top: 12px;
+  font-weight: bold;
+}
+
+/* 深海蓝科技导航栏 */
+.nav-header {
+  background: linear-gradient(90deg, #102a45 0%, #1e3c72 100%);
+  color: #ffffff;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 0 35px;
+  height: 68px;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.15);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.brand-icon {
+  width: 38px;
+  height: 38px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.brand-text {
+  display: flex;
+  flex-direction: column;
+}
+.brand-title {
+  font-size: 18px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+.brand-sub {
+  font-size: 11px;
+  opacity: 0.75;
+}
+.user-panel {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+.user-pill {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 13.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.role-badge {
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: bold;
+}
+.bg-tag-teacher { background: #f56c6c; color: #fff; }
+.bg-tag-student { background: #67c23a; color: #fff; }
+.nav-action-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: #ffffff;
+}
+.nav-action-btn:hover {
+  background: rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+}
+
+/* 自适应大屏主体内容区 (放宽至 1560px) */
+.main-content {
+  width: 96%;
+  max-width: 1560px;
+  margin: 22px auto 40px auto;
+  padding: 0;
+}
+
+/* 现代数据看板卡片 */
+.metric-row {
+  margin-bottom: 22px;
+}
+.metric-card {
+  border-radius: 12px;
+  padding: 20px 24px;
+  color: #ffffff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.metric-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+}
+.metric-text .num {
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+.metric-text .txt {
+  font-size: 13.5px;
+  opacity: 0.92;
+  margin-top: 5px;
+}
+.icon-wrap {
+  font-size: 42px;
+  opacity: 0.65;
+}
+.card-cyan { background: linear-gradient(135deg, #0ba360 0%, #3cba92 100%); }
+.card-amber { background: linear-gradient(135deg, #ff7e5f 0%, #feb47b 100%); }
+.card-blue { background: linear-gradient(135deg, #2b5876 0%, #4e4376 100%); }
+.card-emerald { background: linear-gradient(135deg, #1d976c 0%, #93f9b9 100%); color: #1a4731; }
+
+/* 提示栏 */
+.tips-banner {
+  background: #e6f7ff;
+  border: 1px solid #91d5ff;
+  border-radius: 8px;
+  padding: 12px 18px;
+  font-size: 13.5px;
+  color: #0050b3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+/* 内容板块统一样式 */
+.content-block {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 20px 24px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04);
+  border: 1px solid #e2e8f0;
+}
+.block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #edf2f7;
+}
+.block-header .title {
+  font-size: 16px;
+  font-weight: bold;
+  color: #1a202c;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.block-header .desc {
+  font-size: 12.5px;
+  color: #a0aec0;
+}
+
+/* 实验卡片微动效 */
+.task-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 18px 20px;
+  transition: all 0.2s ease;
+}
+.task-card:hover {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+}
+.task-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.task-card-top .t-name {
+  font-size: 16px;
+  font-weight: bold;
+  color: #1e293b;
+}
+.max-score-badge {
+  background: #fee2e2;
+  color: #ef4444;
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-weight: bold;
+}
+.t-body p {
+  font-size: 13.5px;
+  color: #475569;
+  margin: 6px 0;
+  line-height: 1.5;
+}
+.t-time {
+  font-size: 12.5px;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.task-card-footer {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+.file-tag {
+  font-size: 12.5px;
+  color: #64748b;
+}
+.file-tag span {
+  color: #2563eb;
+  font-weight: bold;
+}
+
+/* 表格与状态徽章 */
+.custom-table {
+  border-radius: 8px;
+  overflow: hidden;
+}
+.badge {
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+}
+.badge-gray { background: #f1f5f9; color: #64748b; }
+.badge-yellow { background: #fef3c7; color: #d97706; }
+.badge-green { background: #dcfce7; color: #15803d; }
+.score-highlight {
+  font-size: 15.5px;
+  font-weight: bold;
+  color: #16a34a;
+}
+
+/* 教师端操作栏 */
+.teacher-box {
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+.modern-tabs {
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.05);
+}
+.tab-title {
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.action-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  background: #f8fafc;
+  padding: 12px 18px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+.label-text {
+  font-size: 14px;
+  font-weight: bold;
+  color: #334155;
+}
+.bar-left, .bar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* 快捷评语 */
+.quick-tags {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tag-click {
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.tag-click:hover {
+  transform: scale(1.05);
+}
+
+/* 页脚 */
+.app-footer {
+  text-align: center;
+  padding: 24px 0 35px 0;
+  color: #94a3b8;
+  font-size: 12.5px;
+  line-height: 1.8;
+}
+.app-footer p {
+  margin: 0;
+}
+.tech-stack {
+  font-size: 11.5px;
+  opacity: 0.8;
 }
 </style>

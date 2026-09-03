@@ -6,6 +6,8 @@ public class User {
     private String password;
     private String realName;
     private String role;
+    private Long classId;
+    private String className; // 关联展示班级名称
     private String email;
     private String phone;
 
@@ -19,6 +21,10 @@ public class User {
     public void setRealName(String realName) { this.realName = realName; }
     public String getRole() { return role; }
     public void setRole(String role) { this.role = role; }
+    public Long getClassId() { return classId; }
+    public void setClassId(Long classId) { this.classId = classId; }
+    public String getClassName() { return className; }
+    public void setClassName(String className) { this.className = className; }
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
     public String getPhone() { return phone; }
