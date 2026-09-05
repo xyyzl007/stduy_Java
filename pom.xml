@@ -60,6 +60,7 @@
 
     <build>
         <finalName>study</finalName>
+        <sourceDirectory>src</sourceDirectory>
         <plugins>
             <!-- 解决没有 web.xml 时的 War 打包问题 -->
             <plugin>
