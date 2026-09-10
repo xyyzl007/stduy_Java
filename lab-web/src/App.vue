@@ -10,20 +10,18 @@
         </div>
 
         <el-tabs v-model="authTab" stretch class="custom-tabs">
-          <!-- 登录表单 -->
           <el-tab-pane label="系统登录" name="login">
             <el-form :model="loginForm" label-position="top" style="margin-top: 15px;">
               <el-form-item label="登录账号 (学号 / 工号)">
                 <el-input v-model="loginForm.username" :prefix-icon="UserFilled" placeholder="如: S2026001 / T2026001" size="large" />
               </el-form-item>
-              <el-form-item label="登录密码">
+              <el-form-item label="系统密码">
                 <el-input v-model="loginForm.password" :prefix-icon="Lock" type="password" show-password placeholder="请输入密码" size="large" />
               </el-form-item>
               <el-button type="primary" size="large" class="submit-btn" @click="handleLogin">登录工作台</el-button>
             </el-form>
           </el-tab-pane>
 
-          <!-- 注册表单 -->
           <el-tab-pane label="注册新账号" name="register">
             <el-form :model="regForm" label-position="top" style="margin-top: 10px;">
               <el-form-item label="身份类型">
@@ -33,16 +31,12 @@
                 </el-radio-group>
               </el-form-item>
               <el-row :gutter="12">
-                <el-col :span="12">
-                  <el-form-item label="学号/工号"><el-input v-model="regForm.username" placeholder="登录账号" /></el-form-item>
-                </el-col>
-                <el-col :span="12">
-                  <el-form-item label="真实姓名"><el-input v-model="regForm.realName" placeholder="姓名" /></el-form-item>
-                </el-col>
+                <el-col :span="12"><el-form-item label="学号/工号"><el-input v-model="regForm.username" placeholder="账号" /></el-form-item></el-col>
+                <el-col :span="12"><el-form-item label="真实姓名"><el-input v-model="regForm.realName" placeholder="姓名" /></el-form-item></el-col>
               </el-row>
-              <el-form-item label="登录密码"><el-input v-model="regForm.password" type="password" show-password placeholder="设置密码" /></el-form-item>
+              <el-form-item label="登录密码"><el-input v-model="regForm.password" type="password" show-password placeholder="密码" /></el-form-item>
               <el-form-item v-if="regForm.role === 'ROLE_STUDENT'" label="所属行政班级">
-                <el-select v-model="regForm.classId" placeholder="选择行政班级" style="width: 100%;">
+                <el-select v-model="regForm.classId" placeholder="选择班级" style="width: 100%;">
                   <el-option v-for="c in classList" :key="c.id" :label="c.className" :value="c.id" />
                 </el-select>
               </el-form-item>
@@ -59,7 +53,6 @@
 
     <!-- ================= 2. 已登录：全屏自适应主系统 ================= -->
     <div v-else class="app-layout">
-      <!-- 深蓝质感高校顶栏 -->
       <el-header class="nav-header">
         <div class="brand">
           <div class="brand-icon"><el-icon :size="22" color="#ffffff"><Reading /></el-icon></div>
@@ -81,11 +74,9 @@
         </div>
       </el-header>
 
-      <!-- 流式自适应内容区 (放宽至 1560px) -->
       <main class="main-content">
-        <!-- ================= 学生端视图 ================= -->
+        <!-- 学生端视图 -->
         <div v-if="currentUser.role === 'ROLE_STUDENT'">
-          <!-- 数据看板 -->
           <el-row :gutter="18" class="metric-row">
             <el-col :span="6">
               <div class="metric-card card-cyan">
@@ -115,14 +106,14 @@
 
           <div class="tips-banner">
             <el-icon :size="18"><InfoFilled /></el-icon>
-            <span><strong>提交机制提醒：</strong>附件上传后将安全保存在【草稿箱】（教师端不可见）。核实无误后请点击【确认提交】，截止前最多可修改 3 次。到达截止时间若未手动提交，系统将自动提交草稿。</span>
+            <span><strong>提交机制提醒：</strong>附件上传后暂存于【草稿箱】（教师不可见）。核实无误后请点击【确认提交】，截止日前限期修改 3 次，超期系统自动提交草稿。</span>
           </div>
 
-          <!-- 实验任务卡片 -->
+          <!-- 任务列表 -->
           <div class="content-block">
             <div class="block-header">
-              <span class="title"><el-icon><Document /></el-icon> 实验任务发布专区</span>
-              <span class="desc">点击下方卡片上传实验报告附件 (PDF/Word)</span>
+              <span class="title"><el-icon><Document /></el-icon> 实验任务专区</span>
+              <span class="desc">请按各课程要求撰写并上传实验报告附件</span>
             </div>
 
             <el-row :gutter="20">
@@ -156,10 +147,10 @@
             </el-row>
           </div>
 
-          <!-- 提交记录表格 -->
+          <!-- 提交表格 -->
           <div class="content-block" style="margin-top: 20px;">
             <div class="block-header">
-              <span class="title"><el-icon><FolderOpened /></el-icon> 我的实验提交记录与批阅反馈</span>
+              <span class="title"><el-icon><FolderOpened /></el-icon> 我的实验提交记录与批改反馈</span>
               <el-button size="small" :icon="Refresh" @click="loadMySubmissions">刷新列表</el-button>
             </div>
 
@@ -205,9 +196,8 @@
           </div>
         </div>
 
-        <!-- ================= 教师端视图 ================= -->
+        <!-- 教师端视图 -->
         <div v-else>
-          <!-- 教师看板 -->
           <el-row :gutter="18" class="metric-row">
             <el-col :span="6">
               <div class="metric-card card-cyan">
@@ -235,7 +225,6 @@
             </el-col>
           </el-row>
 
-          <!-- 教师综合管理多标签卡片 -->
           <div class="content-block teacher-box">
             <el-tabs v-model="teacherActiveTab" type="border-card" class="modern-tabs">
               <!-- 标签 1: 实验报告批阅与归档 -->
@@ -244,13 +233,20 @@
 
                 <div class="action-bar">
                   <div class="bar-left">
-                    <span class="label-text">筛选实验任务：</span>
-                    <el-select v-model="selectedTaskId" placeholder="选择任务" style="width: 320px;" @change="loadTaskSubmissions">
+                    <span class="label-text">筛选实验：</span>
+                    <el-select v-model="selectedTaskId" placeholder="选择任务" style="width: 260px;" @change="loadTaskSubmissions">
                       <el-option v-for="t in taskList" :key="t.id" :label="t.title" :value="t.id" />
                     </el-select>
+
+                    <el-button v-if="currentTask" type="primary" plain :icon="Edit" size="small" @click="openEditTaskDialog">编辑此实验</el-button>
+                    <el-popconfirm v-if="currentTask" title="确定要彻底删除该实验任务吗？关联的学生提交也一并删除！" @confirm="handleDeleteTask">
+                      <template #reference>
+                        <el-button type="danger" plain :icon="Delete" size="small">删除此实验</el-button>
+                      </template>
+                    </el-popconfirm>
                   </div>
                   <div class="bar-right">
-                    <el-button type="success" :icon="Plus" @click="taskDialogVisible = true">发布新实验</el-button>
+                    <el-button type="success" :icon="Plus" @click="openCreateTaskDialog">发布新实验</el-button>
                     <el-button type="warning" :icon="Download" @click="downloadAllZip">打包下载全部报告 (ZIP)</el-button>
                     <el-button type="primary" :icon="Refresh" @click="loadTaskSubmissions">刷新列表</el-button>
                   </div>
@@ -306,6 +302,15 @@
                   <el-table-column prop="createdAt" label="创建时间" width="200">
                     <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
                   </el-table-column>
+                  <el-table-column label="操作" width="120" fixed="right">
+                    <template #default="{ row }">
+                      <el-popconfirm title="确定要删除该班级吗？原班级学生将变为【待分配班级】！" @confirm="handleDeleteClass(row.id)">
+                        <template #reference>
+                          <el-button type="danger" size="small" :icon="Delete">删除班级</el-button>
+                        </template>
+                      </el-popconfirm>
+                    </template>
+                  </el-table-column>
                 </el-table>
               </el-tab-pane>
 
@@ -322,27 +327,63 @@
                   <el-table-column prop="teacherName" label="主讲教师" width="140" />
                   <el-table-column prop="semester" label="开课学期" width="160" />
                   <el-table-column prop="description" label="课程大纲描述" min-width="240" />
+                  <el-table-column label="操作" width="120" fixed="right">
+                    <template #default="{ row }">
+                      <el-popconfirm title="确定要彻底删除该课程吗？该课程下所有实验也将被同步清理！" @confirm="handleDeleteCourse(row.id)">
+                        <template #reference>
+                          <el-button type="danger" size="small" :icon="Delete">删除课程</el-button>
+                        </template>
+                      </el-popconfirm>
+                    </template>
+                  </el-table-column>
                 </el-table>
               </el-tab-pane>
 
-              <!-- 标签 4: 学生名单管理 -->
+              <!-- 标签 4: 学生名单管理 (已集成【全部学生】、【待分配班级】及【一键重置】) -->
               <el-tab-pane name="students">
                 <template #label><span class="tab-title"><el-icon><User /></el-icon> 学生名单管理</span></template>
                 <div class="action-bar">
-                  <div class="bar-left">
-                    <span class="label-text">筛选行政班级：</span>
-                    <el-select v-model="filterClassId" clearable placeholder="查看全部班级学生" style="width: 260px;" @change="loadStudentList">
-                      <el-option v-for="c in classList" :key="c.id" :label="c.className" :value="c.id" />
-                    </el-select>
+                  <div class="bar-left" style="gap: 15px;">
+                    <div>
+                      <span class="label-text">筛选班级：</span>
+                      <el-select v-model="filterClassId" placeholder="选择班级范围" style="width: 220px;" @change="loadStudentList">
+                        <el-option label="-- 全部在籍学生 --" :value="null" />
+                        <el-option label="-- 待分配班级学生 --" :value="-1" />
+                        <el-option v-for="c in classList" :key="c.id" :label="c.className" :value="c.id" />
+                      </el-select>
+                    </div>
+                    <div>
+                      <span class="label-text">快速搜索：</span>
+                      <el-input
+                          v-model="searchStudentKey"
+                          placeholder="输入学号或姓名搜索"
+                          style="width: 220px;"
+                          clearable
+                          @clear="loadStudentList"
+                          @keyup.enter="loadStudentList"
+                      />
+                    </div>
+                    <el-button type="primary" :icon="Refresh" @click="loadStudentList">查询名单</el-button>
+                    <el-button :icon="RefreshRight" @click="resetStudentFilter">重置</el-button>
                   </div>
-                  <el-button type="primary" :icon="Refresh" @click="loadStudentList">刷新名单</el-button>
                 </div>
+
                 <el-table :data="studentList" border stripe style="width: 100%" class="custom-table">
-                  <el-table-column prop="username" label="学号" width="160" />
-                  <el-table-column prop="realName" label="学生姓名" width="160" />
-                  <el-table-column prop="className" label="所属行政班级" width="220" />
+                  <el-table-column prop="username" label="学号" width="150" />
+                  <el-table-column prop="realName" label="学生姓名" width="150" />
+                  <el-table-column label="所属行政班级" min-width="220">
+                    <template #default="{ row }">
+                      <el-tag v-if="row.className" type="success">{{ row.className }}</el-tag>
+                      <el-tag v-else type="warning" effect="dark">待重新分配班级</el-tag>
+                    </template>
+                  </el-table-column>
                   <el-table-column prop="phone" label="联系电话" width="160" />
                   <el-table-column prop="email" label="联系邮箱" min-width="220" />
+                  <el-table-column label="操作" width="140" fixed="right">
+                    <template #default="{ row }">
+                      <el-button type="primary" plain size="small" :icon="Edit" @click="openAssignClassDialog(row)">分配班级</el-button>
+                    </template>
+                  </el-table-column>
                 </el-table>
               </el-tab-pane>
             </el-tabs>
@@ -350,14 +391,49 @@
         </div>
       </main>
 
-      <!-- 稳重大气的高校系统版权 Footer -->
       <footer class="app-footer">
         <p>江苏科技大学 · Java后端开发实战课程集中实践项目</p>
         <p class="tech-stack">架构支持: Spring Boot 3.2.5 + Vue 3 + Element Plus + MySQL 8.x | 仓库管理: Gitee</p>
       </footer>
     </div>
 
-    <!-- ================= 弹窗集合 ================= -->
+    <!-- 弹窗：发布 / 编辑实验任务 -->
+    <el-dialog v-model="taskDialogVisible" :title="isEditingTask ? '编辑修改实验任务' : '发布新实验任务'" width="560px">
+      <el-form label-width="110px">
+        <el-form-item label="所属课程">
+          <el-select v-model="newTaskForm.courseId" placeholder="请选择该实验所属的主讲课程" style="width: 100%;">
+            <el-option v-for="c in courseList" :key="c.id" :label="c.courseName + ' (' + c.courseCode + ')'" :value="c.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="实验标题"><el-input v-model="newTaskForm.title" placeholder="如：实验三：Vue组件化实战" /></el-form-item>
+        <el-form-item label="考核满分"><el-input-number v-model="newTaskForm.maxScore" :min="10" :max="100" /></el-form-item>
+        <el-form-item label="截止时间">
+          <el-date-picker v-model="newTaskForm.deadline" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" style="width: 100%;" />
+        </el-form-item>
+        <el-form-item label="实验要求内容"><el-input v-model="newTaskForm.content" type="textarea" :rows="4" placeholder="请详细输入实验要求..." /></el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="taskDialogVisible = false">取消</el-button>
+        <el-button type="success" @click="submitTaskForm">{{ isEditingTask ? '保存修改' : '确认发布任务' }}</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 弹窗：老师为学生调整/分配班级 -->
+    <el-dialog v-model="assignClassDialogVisible" title="为学生分配/调整行政班级" width="460px">
+      <el-form label-width="90px">
+        <el-form-item label="学生姓名"><el-input v-model="currentStudent.realName" disabled /></el-form-item>
+        <el-form-item label="学生学号"><el-input v-model="currentStudent.username" disabled /></el-form-item>
+        <el-form-item label="目标班级">
+          <el-select v-model="targetClassId" placeholder="请选择调入的行政班级" style="width: 100%;">
+            <el-option v-for="c in classList" :key="c.id" :label="c.className" :value="c.id" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="assignClassDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitAssignClass">确认分配</el-button>
+      </template>
+    </el-dialog>
 
     <!-- 弹窗：在线打分 -->
     <el-dialog v-model="dialogVisible" title="实验报告在线批阅与评分" width="560px">
@@ -382,22 +458,6 @@
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
         <el-button type="primary" @click="submitGrade">提交批阅成绩</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- 弹窗：发布实验 -->
-    <el-dialog v-model="taskDialogVisible" title="发布新实验任务" width="550px">
-      <el-form label-width="110px">
-        <el-form-item label="实验标题"><el-input v-model="newTaskForm.title" placeholder="如：实验三：Vue组件化实战" /></el-form-item>
-        <el-form-item label="考核满分"><el-input-number v-model="newTaskForm.maxScore" :min="10" :max="100" /></el-form-item>
-        <el-form-item label="截止时间">
-          <el-date-picker v-model="newTaskForm.deadline" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" style="width: 100%;" />
-        </el-form-item>
-        <el-form-item label="实验要求内容"><el-input v-model="newTaskForm.content" type="textarea" :rows="4" /></el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="taskDialogVisible = false">取消</el-button>
-        <el-button type="success" @click="submitNewTask">确认发布任务</el-button>
       </template>
     </el-dialog>
 
@@ -455,7 +515,7 @@ import { ref, computed, onMounted } from 'vue'
 import {
   Reading, Upload, Plus, Download, UserFilled, Lock, SwitchButton,
   Document, EditPen, CircleCheck, Trophy, Tickets, Files, Clock, Histogram,
-  FolderOpened, Edit, School, Management, User, Refresh, Calendar, InfoFilled
+  FolderOpened, Edit, Delete, School, Management, User, Refresh, RefreshRight, Calendar, InfoFilled
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import axios from 'axios'
@@ -486,21 +546,27 @@ const classList = ref([])
 const courseList = ref([])
 const studentList = ref([])
 const filterClassId = ref(null)
+const searchStudentKey = ref('')
 
-// 弹窗表单状态
+// 弹窗状态
 const uploadingTaskId = ref(null)
 const dialogVisible = ref(false)
 const taskDialogVisible = ref(false)
+const isEditingTask = ref(false)
 const classDialogVisible = ref(false)
 const courseDialogVisible = ref(false)
+const assignClassDialogVisible = ref(false)
+
+const currentStudent = ref({})
+const targetClassId = ref(null)
 
 const currentGradeItem = ref({})
 const gradeForm = ref({ score: 90, feedback: '' })
-const newTaskForm = ref({ title: '', content: '', deadline: '2026-10-30T23:59:59', maxScore: 100 })
+const newTaskForm = ref({ id: null, courseId: null, title: '', content: '', deadline: '2026-10-30T23:59:59', maxScore: 100 })
 const newClassForm = ref({ className: '', gradeYear: '2023级' })
 const newCourseForm = ref({ courseCode: '', courseName: '', semester: '2026-秋季', description: '' })
 
-// 计算看板数据
+const currentTask = computed(() => taskList.value.find(t => t.id === selectedTaskId.value))
 const countDrafts = computed(() => mySubmissions.value.filter(s => s.status === 'DRAFT').length)
 const countSubmitted = computed(() => mySubmissions.value.filter(s => s.status === 'SUBMITTED').length)
 const studentAvgScore = computed(() => {
@@ -518,11 +584,7 @@ const teacherGradedRate = computed(() => {
 
 const formatTime = (t) => t ? t.replace('T', ' ') : '-'
 const getSubmission = (taskId) => mySubmissions.value.find(s => s.taskId === taskId)
-
-// 快捷评语
-const appendFeedback = (text) => {
-  gradeForm.value.feedback = text
-}
+const appendFeedback = (text) => { gradeForm.value.feedback = text }
 
 // 登录/注册
 const handleLogin = async () => {
@@ -536,9 +598,7 @@ const handleLogin = async () => {
     } else {
       ElMessage.error(res.data.message)
     }
-  } catch (e) {
-    ElMessage.error('登录服务连接失败，请确认后端已启动')
-  }
+  } catch (e) { ElMessage.error('登录连接失败，请确认后端已启动') }
 }
 
 const handleRegister = async () => {
@@ -560,12 +620,12 @@ const handleLogout = () => {
   ElMessage.info('已安全退出')
 }
 
-// 个人资料与密码
+// 个人中心
 const updateProfile = async () => {
   const res = await axios.post(`${API_AUTH}/profile`, profileForm.value)
   if (res.data.code === 200) {
     currentUser.value = res.data.data
-    ElMessage.success('个人资料已保存！')
+    ElMessage.success('资料已保存！')
     profileDialogVisible.value = false
   }
 }
@@ -577,7 +637,7 @@ const updatePassword = async () => {
     newPassword: pwdForm.value.newPassword
   })
   if (res.data.code === 200) {
-    ElMessage.success(res.data.message)
+    ElMessage.success('密码修改成功！')
     pwdForm.value = { oldPassword: '', newPassword: '' }
     profileDialogVisible.value = false
   } else {
@@ -587,7 +647,7 @@ const updatePassword = async () => {
 
 // 数据加载
 const initDashboard = async () => {
-  loadTasks()
+  await loadTasks()
   loadClasses()
   loadCourses()
   if (currentUser.value.role === 'ROLE_STUDENT') {
@@ -601,8 +661,12 @@ const initDashboard = async () => {
 const loadTasks = async () => {
   const res = await axios.get(`${API_LAB}/tasks`)
   taskList.value = res.data.data
-  if (taskList.value.length > 0 && !selectedTaskId.value) {
-    selectedTaskId.value = taskList.value[0].id
+  if (taskList.value.length > 0) {
+    if (!selectedTaskId.value || !taskList.value.some(t => t.id === selectedTaskId.value)) {
+      selectedTaskId.value = taskList.value[0].id
+    }
+  } else {
+    selectedTaskId.value = null
   }
 }
 
@@ -612,7 +676,10 @@ const loadMySubmissions = async () => {
 }
 
 const loadTaskSubmissions = async () => {
-  if (!selectedTaskId.value) return
+  if (!selectedTaskId.value) {
+    teacherSubmissions.value = []
+    return
+  }
   const res = await axios.get(`${API_LAB}/submissions/task/${selectedTaskId.value}`)
   teacherSubmissions.value = res.data.data
 }
@@ -627,13 +694,119 @@ const loadCourses = async () => {
   courseList.value = res.data.data
 }
 
+// 核心查询函数
 const loadStudentList = async () => {
-  const url = filterClassId.value ? `${API_MANAGE}/students?classId=${filterClassId.value}` : `${API_MANAGE}/students`
+  let url = `${API_MANAGE}/students?`
+  if (filterClassId.value !== null && filterClassId.value !== '' && filterClassId.value !== undefined) {
+    url += `classId=${filterClassId.value}&`
+  }
+  if (searchStudentKey.value && searchStudentKey.value.trim()) {
+    url += `keyword=${encodeURIComponent(searchStudentKey.value.trim())}&`
+  }
   const res = await axios.get(url)
   studentList.value = res.data.data
 }
 
-// 业务操作
+// 一键重置函数 (恢复查看全部学生)
+const resetStudentFilter = () => {
+  filterClassId.value = null
+  searchStudentKey.value = ''
+  loadStudentList()
+}
+
+// 任务管理
+const openCreateTaskDialog = () => {
+  isEditingTask.value = false
+  newTaskForm.value = {
+    id: null,
+    courseId: courseList.value.length > 0 ? courseList.value[0].id : 1,
+    title: '',
+    content: '',
+    deadline: '2026-10-30T23:59:59',
+    maxScore: 100
+  }
+  taskDialogVisible.value = true
+}
+
+const openEditTaskDialog = () => {
+  if (!currentTask.value) return
+  isEditingTask.value = true
+  newTaskForm.value = {
+    id: currentTask.value.id,
+    courseId: currentTask.value.courseId || 1,
+    title: currentTask.value.title,
+    content: currentTask.value.content,
+    deadline: currentTask.value.deadline,
+    maxScore: currentTask.value.maxScore
+  }
+  taskDialogVisible.value = true
+}
+
+const submitTaskForm = async () => {
+  if (!newTaskForm.value.title || !newTaskForm.value.content) {
+    ElMessage.warning('请填写完整的实验标题与要求')
+    return
+  }
+  if (isEditingTask.value) {
+    await axios.put(`${API_LAB}/tasks`, newTaskForm.value)
+    ElMessage.success('实验任务修改成功！')
+  } else {
+    await axios.post(`${API_LAB}/tasks`, newTaskForm.value)
+    ElMessage.success('新实验发布成功！')
+  }
+  taskDialogVisible.value = false
+  isEditingTask.value = false
+  await loadTasks()
+  loadTaskSubmissions()
+}
+
+const handleDeleteTask = async () => {
+  if (!selectedTaskId.value) return
+  await axios.delete(`${API_LAB}/tasks/${selectedTaskId.value}`)
+  ElMessage.success('该实验任务及关联所有学生提交已彻底删除！')
+  selectedTaskId.value = null
+  await loadTasks()
+  loadTaskSubmissions()
+}
+
+// 班级与课程删除
+const handleDeleteClass = async (classId) => {
+  const res = await axios.delete(`${API_MANAGE}/classes/${classId}`)
+  ElMessage.success(res.data.message || '班级已删除！')
+  await loadClasses()
+  loadStudentList()
+}
+
+const handleDeleteCourse = async (courseId) => {
+  const res = await axios.delete(`${API_MANAGE}/courses/${courseId}`)
+  ElMessage.success(res.data.message || '主讲课程已彻底删除！')
+  await loadCourses()
+  await loadTasks()
+  loadTaskSubmissions()
+}
+
+// 分配班级
+const openAssignClassDialog = (row) => {
+  currentStudent.value = row
+  targetClassId.value = row.classId || (classList.value.length > 0 ? classList.value[0].id : null)
+  assignClassDialogVisible.value = true
+}
+
+const submitAssignClass = async () => {
+  if (!targetClassId.value) {
+    ElMessage.warning('请选择目标行政班级')
+    return
+  }
+  await axios.post(`${API_MANAGE}/students/assign-class`, {
+    studentId: currentStudent.value.id,
+    classId: targetClassId.value
+  })
+  ElMessage.success(`已成功将学生【${currentStudent.value.realName}】分配至目标班级！`)
+  assignClassDialogVisible.value = false
+  loadStudentList()
+}
+
+// 学生上传与确认
 const handleBeforeUpload = (taskId) => {
   uploadingTaskId.value = taskId
   ElMessage.info('正在上传文件到草稿箱...')
@@ -667,17 +840,11 @@ const confirmFinalSubmit = async (taskId) => {
   }
 }
 
-const submitNewTask = async () => {
-  await axios.post(`${API_LAB}/tasks`, newTaskForm.value)
-  ElMessage.success('新实验任务发布成功！')
-  taskDialogVisible.value = false
-  loadTasks()
-}
-
 const submitNewClass = async () => {
   await axios.post(`${API_MANAGE}/classes`, newClassForm.value)
   ElMessage.success('新行政班级开设成功！')
   classDialogVisible.value = false
+  newClassForm.value = { className: '', gradeYear: '2023级' }
   loadClasses()
 }
 
@@ -686,6 +853,7 @@ const submitNewCourse = async () => {
   await axios.post(`${API_MANAGE}/courses`, newCourseForm.value)
   ElMessage.success('新课程开设成功！')
   courseDialogVisible.value = false
+  newCourseForm.value = { courseCode: '', courseName: '', semester: '2026-秋季', description: '' }
   loadCourses()
 }
 
@@ -719,362 +887,88 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.system-container {
-  min-height: 100vh;
-  background: linear-gradient(180deg, #edf2f7 0%, #e2e8f0 100%);
-  color: #2d3748;
-}
+.system-container { min-height: 100vh; background: linear-gradient(180deg, #edf2f7 0%, #e2e8f0 100%); color: #2d3748; }
 
-/* 登录视窗 */
-.login-wrapper {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  background: linear-gradient(135deg, #102a45 0%, #1e3c72 50%, #2a5298 100%);
-}
-.login-box {
-  width: 480px;
-  background: #ffffff;
-  border-radius: 14px;
-  padding: 35px 40px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
-}
-.login-header {
-  text-align: center;
-  margin-bottom: 20px;
-}
-.icon-badge {
-  width: 60px;
-  height: 60px;
-  background: #1e3c72;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 12px;
-}
-.login-header .title {
-  font-size: 20px;
-  color: #1a202c;
-  margin: 6px 0;
-}
-.login-header .subtitle {
-  font-size: 13px;
-  color: #718096;
-}
-.submit-btn {
-  width: 100%;
-  margin-top: 12px;
-  font-weight: bold;
-}
+/* 登录 */
+.login-wrapper { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: linear-gradient(135deg, #102a45 0%, #1e3c72 50%, #2a5298 100%); }
+.login-box { width: 480px; background: #ffffff; border-radius: 14px; padding: 35px 40px; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25); }
+.login-header { text-align: center; margin-bottom: 20px; }
+.icon-badge { width: 60px; height: 60px; background: #1e3c72; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 12px; }
+.login-header .title { font-size: 20px; color: #1a202c; margin: 6px 0; }
+.login-header .subtitle { font-size: 13px; color: #718096; }
+.submit-btn { width: 100%; margin-top: 12px; font-weight: bold; }
 
-/* 深海蓝科技导航栏 */
-.nav-header {
-  background: linear-gradient(90deg, #102a45 0%, #1e3c72 100%);
-  color: #ffffff;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 35px;
-  height: 68px;
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.15);
-}
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.brand-icon {
-  width: 38px;
-  height: 38px;
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.brand-text {
-  display: flex;
-  flex-direction: column;
-}
-.brand-title {
-  font-size: 18px;
-  font-weight: bold;
-  letter-spacing: 0.5px;
-}
-.brand-sub {
-  font-size: 11px;
-  opacity: 0.75;
-}
-.user-panel {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-.user-pill {
-  background: rgba(255, 255, 255, 0.1);
-  padding: 5px 14px;
-  border-radius: 20px;
-  font-size: 13.5px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-}
-.role-badge {
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 11px;
-  font-weight: bold;
-}
+/* 导航 */
+.nav-header { background: linear-gradient(90deg, #102a45 0%, #1e3c72 100%); color: #ffffff; display: flex; justify-content: space-between; align-items: center; padding: 0 35px; height: 68px; box-shadow: 0 3px 12px rgba(0, 0, 0, 0.15); }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-icon { width: 38px; height: 38px; background: rgba(255, 255, 255, 0.15); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+.brand-text { display: flex; flex-direction: column; }
+.brand-title { font-size: 18px; font-weight: bold; letter-spacing: 0.5px; }
+.brand-sub { font-size: 11px; opacity: 0.75; }
+.user-panel { display: flex; align-items: center; gap: 15px; }
+.user-pill { background: rgba(255, 255, 255, 0.1); padding: 5px 14px; border-radius: 20px; font-size: 13.5px; display: flex; align-items: center; gap: 8px; border: 1px solid rgba(255, 255, 255, 0.15); }
+.role-badge { padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; }
 .bg-tag-teacher { background: #f56c6c; color: #fff; }
 .bg-tag-student { background: #67c23a; color: #fff; }
-.nav-action-btn {
-  background: rgba(255, 255, 255, 0.2);
-  border: none;
-  color: #ffffff;
-}
-.nav-action-btn:hover {
-  background: rgba(255, 255, 255, 0.35);
-  color: #ffffff;
-}
+.nav-action-btn { background: rgba(255, 255, 255, 0.2); border: none; color: #ffffff; }
+.nav-action-btn:hover { background: rgba(255, 255, 255, 0.35); color: #ffffff; }
 
-/* 自适应大屏主体内容区 (放宽至 1560px) */
-.main-content {
-  width: 96%;
-  max-width: 1560px;
-  margin: 22px auto 40px auto;
-  padding: 0;
-}
+/* 内容布局 (1560px) */
+.main-content { width: 96%; max-width: 1560px; margin: 22px auto 40px auto; padding: 0; }
 
-/* 现代数据看板卡片 */
-.metric-row {
-  margin-bottom: 22px;
-}
-.metric-card {
-  border-radius: 12px;
-  padding: 20px 24px;
-  color: #ffffff;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
-}
-.metric-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
-}
-.metric-text .num {
-  font-size: 30px;
-  font-weight: 800;
-  line-height: 1.1;
-}
-.metric-text .txt {
-  font-size: 13.5px;
-  opacity: 0.92;
-  margin-top: 5px;
-}
-.icon-wrap {
-  font-size: 42px;
-  opacity: 0.65;
-}
+/* 看板 */
+.metric-row { margin-bottom: 22px; }
+.metric-card { border-radius: 12px; padding: 20px 24px; color: #ffffff; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08); transition: transform 0.25s ease, box-shadow 0.25s ease; }
+.metric-card:hover { transform: translateY(-4px); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12); }
+.metric-text .num { font-size: 30px; font-weight: 800; line-height: 1.1; }
+.metric-text .txt { font-size: 13.5px; opacity: 0.92; margin-top: 5px; }
+.icon-wrap { font-size: 42px; opacity: 0.65; }
 .card-cyan { background: linear-gradient(135deg, #0ba360 0%, #3cba92 100%); }
 .card-amber { background: linear-gradient(135deg, #ff7e5f 0%, #feb47b 100%); }
 .card-blue { background: linear-gradient(135deg, #2b5876 0%, #4e4376 100%); }
 .card-emerald { background: linear-gradient(135deg, #1d976c 0%, #93f9b9 100%); color: #1a4731; }
 
-/* 提示栏 */
-.tips-banner {
-  background: #e6f7ff;
-  border: 1px solid #91d5ff;
-  border-radius: 8px;
-  padding: 12px 18px;
-  font-size: 13.5px;
-  color: #0050b3;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 20px;
-}
+.tips-banner { background: #e6f7ff; border: 1px solid #91d5ff; border-radius: 8px; padding: 12px 18px; font-size: 13.5px; color: #0050b3; display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+.content-block { background: #ffffff; border-radius: 12px; padding: 20px 24px; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04); border: 1px solid #e2e8f0; }
+.block-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; padding-bottom: 10px; border-bottom: 1px solid #edf2f7; }
+.block-header .title { font-size: 16px; font-weight: bold; color: #1a202c; display: flex; align-items: center; gap: 6px; }
+.block-header .desc { font-size: 12.5px; color: #a0aec0; }
 
-/* 内容板块统一样式 */
-.content-block {
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 20px 24px;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04);
-  border: 1px solid #e2e8f0;
-}
-.block-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 18px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #edf2f7;
-}
-.block-header .title {
-  font-size: 16px;
-  font-weight: bold;
-  color: #1a202c;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.block-header .desc {
-  font-size: 12.5px;
-  color: #a0aec0;
-}
+/* 任务卡片 */
+.task-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px 20px; transition: all 0.2s ease; }
+.task-card:hover { background: #ffffff; border-color: #cbd5e1; box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06); }
+.task-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.task-card-top .t-name { font-size: 16px; font-weight: bold; color: #1e293b; }
+.max-score-badge { background: #fee2e2; color: #ef4444; font-size: 12px; padding: 2px 10px; border-radius: 12px; font-weight: bold; }
+.t-body p { font-size: 13.5px; color: #475569; margin: 6px 0; line-height: 1.5; }
+.t-time { font-size: 12.5px; color: #94a3b8; display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.task-card-footer { margin-top: 14px; display: flex; align-items: center; gap: 15px; }
+.file-tag { font-size: 12.5px; color: #64748b; }
+.file-tag span { color: #2563eb; font-weight: bold; }
 
-/* 实验卡片微动效 */
-.task-card {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 18px 20px;
-  transition: all 0.2s ease;
-}
-.task-card:hover {
-  background: #ffffff;
-  border-color: #cbd5e1;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
-}
-.task-card-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-.task-card-top .t-name {
-  font-size: 16px;
-  font-weight: bold;
-  color: #1e293b;
-}
-.max-score-badge {
-  background: #fee2e2;
-  color: #ef4444;
-  font-size: 12px;
-  padding: 2px 10px;
-  border-radius: 12px;
-  font-weight: bold;
-}
-.t-body p {
-  font-size: 13.5px;
-  color: #475569;
-  margin: 6px 0;
-  line-height: 1.5;
-}
-.t-time {
-  font-size: 12.5px;
-  color: #94a3b8;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 6px;
-}
-.task-card-footer {
-  margin-top: 14px;
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-.file-tag {
-  font-size: 12.5px;
-  color: #64748b;
-}
-.file-tag span {
-  color: #2563eb;
-  font-weight: bold;
-}
-
-/* 表格与状态徽章 */
-.custom-table {
-  border-radius: 8px;
-  overflow: hidden;
-}
-.badge {
-  padding: 3px 10px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: bold;
-}
+/* 表格与徽章 */
+.custom-table { border-radius: 8px; overflow: hidden; }
+.badge { padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; }
 .badge-gray { background: #f1f5f9; color: #64748b; }
 .badge-yellow { background: #fef3c7; color: #d97706; }
 .badge-green { background: #dcfce7; color: #15803d; }
-.score-highlight {
-  font-size: 15.5px;
-  font-weight: bold;
-  color: #16a34a;
-}
+.score-highlight { font-size: 15.5px; font-weight: bold; color: #16a34a; }
 
-/* 教师端操作栏 */
-.teacher-box {
-  padding: 0;
-  border: none;
-  background: transparent;
-  box-shadow: none;
-}
-.modern-tabs {
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.05);
-}
-.tab-title {
-  font-weight: bold;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.action-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-  background: #f8fafc;
-  padding: 12px 18px;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-}
-.label-text {
-  font-size: 14px;
-  font-weight: bold;
-  color: #334155;
-}
-.bar-left, .bar-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
+/* 教师端工具行 */
+.teacher-box { padding: 0; border: none; background: transparent; box-shadow: none; }
+.modern-tabs { border-radius: 12px; overflow: hidden; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.05); }
+.tab-title { font-weight: bold; display: flex; align-items: center; gap: 6px; }
+.action-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; background: #f8fafc; padding: 12px 18px; border-radius: 8px; border: 1px solid #e2e8f0; }
+.label-text { font-size: 14px; font-weight: bold; color: #334155; }
+.bar-left, .bar-right { display: flex; align-items: center; gap: 10px; }
 
 /* 快捷评语 */
-.quick-tags {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.tag-click {
-  cursor: pointer;
-  transition: transform 0.15s;
-}
-.tag-click:hover {
-  transform: scale(1.05);
-}
+.quick-tags { display: flex; gap: 8px; flex-wrap: wrap; }
+.tag-click { cursor: pointer; transition: transform 0.15s; }
+.tag-click:hover { transform: scale(1.05); }
 
 /* 页脚 */
-.app-footer {
-  text-align: center;
-  padding: 24px 0 35px 0;
-  color: #94a3b8;
-  font-size: 12.5px;
-  line-height: 1.8;
-}
-.app-footer p {
-  margin: 0;
-}
-.tech-stack {
-  font-size: 11.5px;
-  opacity: 0.8;
-}
+.app-footer { text-align: center; padding: 24px 0 35px 0; color: #94a3b8; font-size: 12.5px; line-height: 1.8; }
+.app-footer p { margin: 0; }
+.tech-stack { font-size: 11.5px; opacity: 0.8; }
 </style>

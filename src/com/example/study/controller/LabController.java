@@ -5,19 +5,24 @@ import com.example.study.entity.LabSubmission;
 import com.example.study.entity.LabTask;
 import com.example.study.mapper.LabSubmissionMapper;
 import com.example.study.mapper.LabTaskMapper;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @RestController
 @RequestMapping("/api/lab")
@@ -29,14 +34,14 @@ public class LabController {
     @Autowired
     private LabSubmissionMapper submissionMapper;
 
-    // 1. 查询所有实验任务列表（启用缓存，避免高并发下频繁刷库）
+    // 1. 查询所有实验任务（缓存）
     @Cacheable(value = "taskList")
     @GetMapping("/tasks")
     public Result<List<LabTask>> getTasks() {
         return Result.success(taskMapper.findAll());
     }
 
-    // 2. 教师发布新实验任务（发布后自动清空缓存，保证数据一致性）
+    // 2. 教师发布新实验（清空缓存）
     @CacheEvict(value = "taskList", allEntries = true)
     @PostMapping("/tasks")
     public Result<String> createTask(@RequestBody LabTask task) {
@@ -46,7 +51,23 @@ public class LabController {
         return Result.success("实验任务发布成功！");
     }
 
-    // 3. 文件上传接口
+    // 【解决问题一】：教师修改实验任务（清空缓存）
+    @CacheEvict(value = "taskList", allEntries = true)
+    @PutMapping("/tasks")
+    public Result<String> updateTask(@RequestBody LabTask task) {
+        taskMapper.update(task);
+        return Result.success("实验任务修改成功！");
+    }
+
+    @CacheEvict(value = "taskList", allEntries = true)
+    @DeleteMapping("/tasks/{id}")
+    public Result<String> deleteTask(@PathVariable Long id) {
+        taskMapper.deleteSubmissionsByTaskId(id); // 先清理提交附件
+        taskMapper.deleteById(id);                // 再删除实验任务
+        return Result.success("实验任务及关联学生提交已彻底删除！");
+    }
+
+    // 5. 上传附件
     @PostMapping("/upload")
     public Result<String> uploadFile(@RequestParam("file") MultipartFile file) {
         if (file.isEmpty()) return Result.error("文件不能为空");
@@ -63,7 +84,7 @@ public class LabController {
         }
     }
 
-    // 4. 上传后暂存为【草稿】
+    // 6. 暂存草稿
     @PostMapping("/draft")
     public Result<String> saveDraft(@RequestBody LabSubmission submission) {
         LabTask task = taskMapper.findById(submission.getTaskId());
@@ -78,7 +99,7 @@ public class LabController {
         return Result.success("草稿保存成功！请在截止时间前确认正式提交。");
     }
 
-    // 5. 学生【正式确认提交】（扣减修改机会，限3次）
+    // 7. 学生正式提交
     @PostMapping("/confirm-submit")
     public Result<String> confirmSubmit(@RequestBody Map<String, Long> params) {
         Long taskId = params.get("taskId");
@@ -90,33 +111,29 @@ public class LabController {
         }
 
         LabSubmission submission = submissionMapper.findByTaskAndStudent(taskId, studentId);
-        if (submission == null) {
-            return Result.error("未找到草稿文件，请先上传附件！");
-        }
-        if (submission.getSubmitCount() >= 3) {
-            return Result.error("正式提交与修改机会已满 3 次，无法再次提交！");
-        }
+        if (submission == null) return Result.error("未找到草稿文件，请先上传附件！");
+        if (submission.getSubmitCount() >= 3) return Result.error("正式提交与修改机会已满 3 次，无法再次提交！");
 
         submissionMapper.confirmSubmit(taskId, studentId);
         int remaining = 3 - (submission.getSubmitCount() + 1);
         return Result.success("正式提交成功！截止日期前您还剩 " + remaining + " 次修改机会。");
     }
 
-    // 6. 学生查看自己的提交与草稿状态（顺便触发超期草稿自动提交）
+    // 8. 学生查询自己记录
     @GetMapping("/submissions/student/{studentId}")
     public Result<List<LabSubmission>> getStudentSubmissions(@PathVariable Long studentId) {
-        submissionMapper.autoSubmitExpiredDrafts(); // 超期草稿自动提交
+        submissionMapper.autoSubmitExpiredDrafts();
         return Result.success(submissionMapper.findByStudentId(studentId));
     }
 
-    // 7. 教师查看指定实验任务的所有学生正式提交
+    // 9. 教师查询任务提交列表
     @GetMapping("/submissions/task/{taskId}")
     public Result<List<LabSubmission>> getTaskSubmissions(@PathVariable Long taskId) {
-        submissionMapper.autoSubmitExpiredDrafts(); // 教师拉取时同步触发自动提交
+        submissionMapper.autoSubmitExpiredDrafts();
         return Result.success(submissionMapper.findByTaskId(taskId));
     }
 
-    // 8. 教师打分与评语
+    // 10. 教师打分
     @PostMapping("/grade")
     public Result<String> gradeReport(@RequestBody Map<String, Object> body) {
         Long id = Long.valueOf(body.get("id").toString());
@@ -128,18 +145,18 @@ public class LabController {
         return Result.success("批阅打分完成！");
     }
 
-    // 9. 教师一键打包下载全部正式报告 (ZIP)
+    // 11. 一键打包 ZIP
     @GetMapping("/submissions/task/{taskId}/export-zip")
-    public void exportTaskSubmissionsZip(@PathVariable Long taskId, jakarta.servlet.http.HttpServletResponse response) {
+    public void exportTaskSubmissionsZip(@PathVariable Long taskId, HttpServletResponse response) {
         LabTask task = taskMapper.findById(taskId);
         String taskName = (task != null) ? task.getTitle() : "task_" + taskId;
         List<LabSubmission> list = submissionMapper.findByTaskId(taskId);
 
         response.setContentType("application/zip");
         response.setHeader("Content-Disposition", "attachment; filename=" +
-                java.net.URLEncoder.encode(taskName + "_学生报告汇总.zip", java.nio.charset.StandardCharsets.UTF_8));
+                URLEncoder.encode(taskName + "_学生报告汇总.zip", StandardCharsets.UTF_8));
 
-        try (java.util.zip.ZipOutputStream zos = new java.util.zip.ZipOutputStream(response.getOutputStream())) {
+        try (ZipOutputStream zos = new ZipOutputStream(response.getOutputStream())) {
             String uploadDir = System.getProperty("user.dir") + File.separator + "uploads" + File.separator;
             byte[] buffer = new byte[4096];
 
@@ -150,9 +167,9 @@ public class LabController {
                 if (!file.exists()) continue;
 
                 String zipEntryName = (sub.getStudentName() != null ? sub.getStudentName() : "学生") + "_" + sub.getFileName();
-                zos.putNextEntry(new java.util.zip.ZipEntry(zipEntryName));
+                zos.putNextEntry(new ZipEntry(zipEntryName));
 
-                try (java.io.FileInputStream fis = new java.io.FileInputStream(file)) {
+                try (FileInputStream fis = new FileInputStream(file)) {
                     int length;
                     while ((length = fis.read(buffer)) > 0) {
                         zos.write(buffer, 0, length);
